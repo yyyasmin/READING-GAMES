@@ -1,0 +1,90 @@
+======================================================================
+  ONE BACKEND (Flask + PostgreSQL) FOR BOTH FRONTEND PROJECTS
+======================================================================
+
+  ndfa-games-root/
+    backend/                    <- single Flask + Postgres API
+    NDFA-MEMORY-MATCH-GAME/     <- frontend 1 (memory match)
+    MATH-ENGLISH-GAMES/          <- frontend 2 (math/english)
+    RONIT-MEMORY-GAME/           <- frontend 3 (רונית חכם, מילה-תמונה)
+    READING-MEMORY-GAME/         <- frontend 4 (ראשית קריאה, תמונה-מילה, לשניים)
+
+----------------------------------------------------------------------
+  Backend (shared)
+----------------------------------------------------------------------
+
+  Flask + PostgreSQL. Entry: app.py. Init DB: db_create.py.
+
+  Run locally:
+    cd backend
+    Copy .env.example to .env, set DATABASE_URL and ADMIN_SECRET.
+    setup.bat (Windows) or bash setup.sh (Mac/Linux)
+    python app.py
+    -> http://localhost:5000
+    Admin: http://localhost:5000/admin
+
+  Database: one DB for both apps (default name: ndfa_games).
+  API: /api/health, /api/tasks, /api/players, /api/rooms,
+       /api/admin/connections, /api/admin/tasks, /api/admin/clean-all.
+  Socket.IO: NDFA + Ronit memory games (rooms, flip, custom deck).
+
+----------------------------------------------------------------------
+  Project 1: NDFA-MEMORY-MATCH-GAME
+----------------------------------------------------------------------
+
+  Memory match (1–3 players), NDFA categories. React + Vite.
+
+  Run:
+    cd NDFA-MEMORY-MATCH-GAME
+    npm install && npm run dev
+  -> http://localhost:5173
+  Netlify: no backend URL env needed; app uses Render URL when on Netlify.
+  Local: uses localhost:5000. Optional .env: VITE_BACKEND_URL for custom URL.
+
+----------------------------------------------------------------------
+  Project 2: MATH-ENGLISH-GAMES
+----------------------------------------------------------------------
+
+  Math/English games (grade 5–6). React + Vite.
+  Uses same backend. Optional .env: VITE_BACKEND_URL if frontend calls API.
+
+  Run:
+    cd MATH-ENGLISH-GAMES
+    npm install && npm run dev
+  -> http://localhost:5173 (use different port if NDFA is running)
+
+----------------------------------------------------------------------
+  Project 3: RONIT-MEMORY-GAME
+----------------------------------------------------------------------
+
+  משחק זיכרון 1–3 משתתפים. התאמת מילה לתמונה. סדרת רונית חכם:
+  זזה, סיסי, רולה-רול, זזה לא זזה, סיסע וזזה רבות.
+
+  Run:
+    cd RONIT-MEMORY-GAME
+    npm install && npm run dev
+  -> http://localhost:5174 (port 5174 to avoid clash with NDFA/MATH).
+
+----------------------------------------------------------------------
+  Project 4: READING-MEMORY-GAME
+----------------------------------------------------------------------
+
+  משחק זיכרון התאמת תמונה למילה – ראשית לימוד קריאה.
+  ברירת מחדל 2 שחקנים (אפשר גם 1 או 3). אותו Socket.IO + backend.
+
+  Run:
+    cd READING-MEMORY-GAME
+    npm install && npm run dev
+  -> http://localhost:5175
+
+----------------------------------------------------------------------
+  Paths (examples)
+----------------------------------------------------------------------
+
+  Backend:  ndfa-games-root\backend
+  NDFA:     ndfa-games-root\NDFA-MEMORY-MATCH-GAME
+  MATH:     ndfa-games-root\MATH-ENGLISH-GAMES
+  RONIT:    ndfa-games-root\RONIT-MEMORY-GAME
+  READING:  ndfa-games-root\READING-MEMORY-GAME
+
+======================================================================

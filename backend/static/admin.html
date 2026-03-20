@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin – DB by subject + age</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 1rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.25rem; }
+    .row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin: 0.5rem 0; }
+    label { min-width: 5rem; }
+    select { padding: 0.25rem 0.5rem; }
+    button { padding: 0.35rem 0.75rem; cursor: pointer; }
+    button.danger { background: #c00; color: #fff; border: none; }
+    pre, .out { background: #f4f4f4; padding: 0.5rem; overflow: auto; max-height: 320px; font-size: 0.85rem; white-space: pre-wrap; }
+    .out { margin-top: 0.5rem; }
+    .err { color: #c00; }
+    .msg { color: #080; }
+  </style>
+</head>
+<body>
+  <h1>Admin – Load / Clean DB (subject + age)</h1>
+  <div class="row">
+    <label for="key">Admin key</label>
+    <input type="password" id="key" placeholder="ADMIN_SECRET" style="width: 12rem;" />
+  </div>
+  <div class="row">
+    <label for="age">Age group</label>
+    <select id="age">
+      <option value="">-- any --</option>
+      <option value="grade_1">grade_1</option>
+      <option value="grade_5_6">grade_5_6</option>
+      <option value="all">all</option>
+    </select>
+    <label for="subject">Subject</label>
+    <select id="subject">
+      <option value="">-- any --</option>
+      <option value="memory">memory</option>
+      <option value="reading">reading</option>
+      <option value="math">math</option>
+      <option value="english">english</option>
+    </select>
+  </div>
+  <div class="row">
+    <button type="button" id="load">Load DB (connections + tasks)</button>
+    <button type="button" id="loadUsers">Load Users (emails history)</button>
+    <button type="button" id="clean">Clean for this age+subject</button>
+    <button type="button" id="cleanAll" class="danger">Clean all DB</button>
+    <label><input type="checkbox" id="cleanPlayers" /> Also delete players</label>
+  </div>
+  <div id="output" class="out"></div>
+
+  <script>
+    const keyEl = document.getElementById('key');
+    const ageEl = document.getElementById('age');
+    const subjectEl = document.getElementById('subject');
+    const loadBtn = document.getElementById('load');
+    const loadUsersBtn = document.getElementById('loadUsers');
+    const cleanBtn = document.getElementById('clean');
+    const cleanAllBtn = document.getElementById('cleanAll');
+    const output = document.getElementById('output');
+
+    function base() {
+      return window.location.origin;
+    }
+    function headers() {
+      const key = keyEl.value.trim();
+      const h = { 'Content-Type': 'application/json' };
+      if (key) h['X-Admin-Key'] = key;
+      return h;
+    }
+    function qs(age, subject) {
+      const p = new URLSearchParams();
+      if (age) p.set('age_group', age);
+      if (subject) p.set('subject', subject);
+      return p.toString();
+    }
+
+    function out(msg, isErr) {
+      output.innerHTML = '';
+      const p = document.createElement('pre');
+      p.textContent = msg;
+      if (isErr) p.classList.add('err'); else p.classList.add('msg');
+      output.appendChild(p);
+    }
+
+    loadBtn.addEventListener('click', async () => {
+      const age = ageEl.value.trim();
+      const subject = subjectEl.value.trim();
+      const q = qs(age, subject);
+      try {
+        const [connRes, taskRes] = await Promise.all([
+          fetch(base() + '/api/admin/connections?' + (q || ''), { headers: headers() }),
+          fetch(base() + '/api/admin/tasks?' + (q || ''), { headers: headers() })
+        ]);
+        const connJson = await connRes.json().catch(() => ({}));
+        const taskJson = await taskRes.json().catch(() => ({}));
+        if (!connRes.ok) {
+          out('Connections: ' + (connJson.error || connRes.status));
+          return;
+        }
+        if (!taskRes.ok) {
+          out('Tasks: ' + (taskJson.error || taskRes.status));
+          return;
+        }
+        out('Connections: ' + (connJson.connections && connJson.connections.length) + '\n' +
+            JSON.stringify(connJson.connections, null, 2) + '\n\nTasks: ' +
+            (taskJson.tasks && taskJson.tasks.length) + '\n' + JSON.stringify(taskJson.tasks, null, 2));
+      } catch (e) {
+        out('Error: ' + e.message, true);
+      }
+    });
+
+    loadUsersBtn.addEventListener('click', async () => {
+      try {
+        const usersRes = await fetch(base() + '/api/admin/users', { headers: headers() });
+        const usersJson = await usersRes.json().catch(() => ({}));
+        if (!usersRes.ok) {
+          out('Users: ' + (usersJson.error || usersRes.status), true);
+          return;
+        }
+        out('Users found: ' + (usersJson.users && usersJson.users.length) + '\n' +
+            JSON.stringify(usersJson.users, null, 2));
+      } catch (e) {
+        out('Error: ' + e.message, true);
+      }
+    });
+
+    cleanBtn.addEventListener('click', async () => {
+      const age = ageEl.value.trim();
+      const subject = subjectEl.value.trim();
+      if (!age || !subject) {
+        out('Choose both Age group and Subject to clean for this combo.', true);
+        return;
+      }
+      const q = qs(age, subject);
+      try {
+        const [connRes, taskRes] = await Promise.all([
+          fetch(base() + '/api/admin/connections?' + q, { method: 'DELETE', headers: headers() }),
+          fetch(base() + '/api/admin/tasks?' + q, { method: 'DELETE', headers: headers() })
+        ]);
+        const connJson = await connRes.json().catch(() => ({}));
+        const taskJson = await taskRes.json().catch(() => ({}));
+        if (!connRes.ok) {
+          out('Connections delete: ' + (connJson.error || connRes.status), true);
+          return;
+        }
+        if (!taskRes.ok) {
+          out('Tasks delete: ' + (taskJson.error || taskRes.status), true);
+          return;
+        }
+        out(connJson.message + '\n' + taskJson.message);
+      } catch (e) {
+        out('Error: ' + e.message, true);
+      }
+    });
+
+    cleanAllBtn.addEventListener('click', async () => {
+      const alsoPlayers = document.getElementById('cleanPlayers').checked;
+      const msg = alsoPlayers
+        ? 'Delete ALL connection_logs, tasks, rooms, room_players AND players. Continue?'
+        : 'Delete ALL connection_logs, tasks, rooms and room_players. Continue?';
+      if (!confirm(msg)) return;
+      try {
+        const url = base() + '/api/admin/clean-all' + (alsoPlayers ? '?players=1' : '');
+        const res = await fetch(url, { method: 'DELETE', headers: headers() });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          out(json.error || res.status, true);
+          return;
+        }
+        out(json.message);
+      } catch (e) {
+        out('Error: ' + e.message, true);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+============================================================
+READING-MEMORY-GAME – משחק זיכרון התאמת תמונה למילה
+ראשית לימוד קריאה · לשניים (או עד 3)
+============================================================
+
+אותו backend כמו RONIT-MEMORY-GAME ו-NDFA-MEMORY-MATCH-GAME:
+  ndfa-games-root\backend  (Flask + Socket.IO)
+
+הרצה מקומית:
+  1. Backend רץ:  cd backend  →  python app.py  (פורט 5000)
+  2. Frontend:     cd READING-MEMORY-GAME  →  npm install  →  npm start
+  3. דפדפן:       http://localhost:5175
+
+הפרוקסי ב-vite.config.js מפנה /api ו-/socket.io ל-127.0.0.1:5000
+כמו בשאר הפרויקטים.
+
+חפיסת הקלפים: src/readingPairs.js (מילים פשוטות + אמוג'י).

@@ -1,0 +1,19 @@
+{
+  "grade_1": {
+    "reading": [
+      { "question": "התאמת האות א", "answer": "א" },
+      { "question": "התאמת האות ב", "answer": "ב" }
+    ]
+  },
+  "grade_5_6": {
+    "math": [
+      { "question": "12 × 8 = ?", "answer": "96" },
+      { "question": "144 ÷ 12 = ?", "answer": "12" },
+      { "question": "0.5 + 0.25 = ?", "answer": "0.75", "alt": ["0.75"] }
+    ],
+    "english": [
+      { "question": "Complete: I ___ to school every day.", "answer": "go", "options": ["go", "goes", "going", "went"] },
+      { "question": "Opposite of \"hot\":", "answer": "cold", "options": ["warm", "cold", "cool", "freeze"] }
+    ]
+  }
+}
