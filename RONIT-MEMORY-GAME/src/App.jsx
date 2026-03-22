@@ -54,7 +54,13 @@ function App() {
       s.on('connect', () => {
         setError('')
         setSocket(s)
-        s.emit('register', { email: em, nickname: nick })
+        s.emit('register', {
+          email: em,
+          nickname: nick,
+          game_type: 'ronit_memory',
+          subject: 'ronit_reading',
+          age_group: 'all'
+        })
       })
       s.on('connect_error', () => {
         s.disconnect()
@@ -160,6 +166,9 @@ function App() {
     socket.emit('createRoom', {
       maxPlayers: maxPlayers,
       pairCount: PAIR_COUNT,
+      game_type: 'ronit',
+      subject: 'ronit_reading',
+      age_group: 'elementary',
       email,
       nickname
     })
@@ -168,7 +177,14 @@ function App() {
   const handleJoinRoom = (code) => {
     setError('')
     if (!socket || !code) return
-    socket.emit('joinRoom', { roomId: code.trim().toUpperCase(), email, nickname })
+    socket.emit('joinRoom', {
+      roomId: code.trim().toUpperCase(),
+      game_type: 'ronit',
+      subject: 'ronit_reading',
+      age_group: 'elementary',
+      email,
+      nickname
+    })
   }
 
   const handleStartGame = () => {

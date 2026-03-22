@@ -10,9 +10,19 @@ class Player(db.Model):
     email = db.Column(db.String(255), unique=True, nullable=False, index=True)
     nickname = db.Column(db.String(100), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_subject = db.Column(db.String(80), nullable=True)
+    last_age_group = db.Column(db.String(40), nullable=True)
+    last_game_id = db.Column(db.String(80), nullable=True)
 
     def to_dict(self):
-        return {'id': self.id, 'email': self.email, 'nickname': self.nickname}
+        return {
+            'id': self.id,
+            'email': self.email,
+            'nickname': self.nickname,
+            'last_subject': self.last_subject,
+            'last_age_group': self.last_age_group,
+            'last_game_id': self.last_game_id,
+        }
 
 
 class ConnectionLog(db.Model):

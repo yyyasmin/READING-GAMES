@@ -8,6 +8,7 @@
     MATH-ENGLISH-GAMES/          <- frontend 2 (math/english)
     RONIT-MEMORY-GAME/           <- frontend 3 (רונית חכם, מילה-תמונה)
     READING-MEMORY-GAME/         <- frontend 4 (ראשית קריאה, תמונה-מילה, לשניים)
+    CBT/                         <- frontend 5 (משחק «מלחמה» – יירוט מחשבות, כניסה מתפריט READING)
 
 ----------------------------------------------------------------------
   Backend (shared)
@@ -24,9 +25,15 @@
     Admin: http://localhost:5000/admin
 
   Database: one DB for both apps (default name: ndfa_games).
+  טבלת players: שדות last_subject, last_age_group, last_game_id מתעדכנים בבחירת משחק (Hub READING + Socket register).
   API: /api/health, /api/tasks, /api/players, /api/rooms,
+       /api/game-login-email, /api/cbt-custom-interceptor,
        /api/admin/connections, /api/admin/tasks, /api/admin/clean-all.
-  Socket.IO: NDFA + Ronit memory games (rooms, flip, custom deck).
+  Socket.IO: NDFA + Ronit + READING memory games (rooms, flip, custom deck).
+
+  DATA (קבצים תחת backend/data/):
+    game_login_emails.jsonl – בכל התחברות: Socket register, או POST /api/players, או POST /api/game-login-email (CBT).
+    cbt_custom_interceptors.jsonl – מיירט עצמי במשחק מלחמה.
 
 ----------------------------------------------------------------------
   Project 1: NDFA-MEMORY-MATCH-GAME
@@ -75,7 +82,32 @@
   Run:
     cd READING-MEMORY-GAME
     npm install && npm run dev
-  -> http://localhost:5175
+    -> http://localhost:5175
+
+  משחק «מלחמה» (CBT): בפיתוח מומלץ VITE_CBT_GAME_URL=/cbt — אותו מקור כמו READING (5175), proxy ל-CBT ב-5176; חובה להריץ שני שרתים (READING + CBT).
+  אם CBT לא רץ: הדפדפן היה יכול להציג «HTTP ERROR 500» (כשל proxy); אחרי התיקון ב-vite.config — דף 502 עם הסבר בעברית.
+  חלופה: כתובת מלאה ל-5176 אם פותחים CBT ישירות (ב-CBT הוגדר base /cbt/ → http://localhost:5176/cbt/).
+  העתק READING-MEMORY-GAME/.env.example ל-.env, הפעל מחדש את Vite של READING אחרי שינוי.
+  משחקים חיצוניים: כפתור «כניסה למשחק» — אימייל+שם+גיל, ואז location.assign לכתובת (יחסית או מלאה).
+  ב-localStorage נשמר רק lastPlayedGameId (אחרון ששיחקת); אימייל/שם/גיל – השלמת דפדפן או מילוי ידני.
+
+----------------------------------------------------------------------
+  Project 5: CBT / משחק «מלחמה»
+----------------------------------------------------------------------
+
+  משחק חשיבה לנוער: סימולציית יירוט – על הטיל מחשבה לא מועילה; על משגרי כיפת ברזל/חץ
+  מחשבות חלופיות (CBT). ללא Socket – משחק יחיד מקומי.
+
+  Run:
+    cd CBT
+    npm install && npm run dev
+    -> ישירות: http://localhost:5176/cbt/  |  דרך READING: http://localhost:5175/cbt/ (שני השרתים רצים)
+
+  כניסה מתפריט READING-MEMORY-GAME: מלא אימייל, שם, גיל; כרטיס «מלחמה» → «כניסה למשחק» — כתובת כמו זיכרון קריאה (אותו host:5175 + נתיב /cbt).
+  בפרודקשן: הגדר VITE_CBT_GAME_URL לכתובת המלאה של CBT (או נתיב יחסי אם מוגש מתחת לאותו דומיין).
+
+  מיירט עצמי: טקסט מקורי של השחקן (לא העתקת ניסוח טיל / משגר). READING מוסיף email בכתובת. POST /api/cbt-custom-interceptor;
+  השרת מוסיף שורה ל־backend/data/cbt_custom_interceptors.jsonl (אימייל, custom_text, round_id, subject, age_group, ts).
 
 ----------------------------------------------------------------------
   Paths (examples)
@@ -86,5 +118,6 @@
   MATH:     ndfa-games-root\MATH-ENGLISH-GAMES
   RONIT:    ndfa-games-root\RONIT-MEMORY-GAME
   READING:  ndfa-games-root\READING-MEMORY-GAME
+  CBT:      ndfa-games-root\CBT
 
 ======================================================================

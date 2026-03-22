@@ -14,6 +14,41 @@ from models import (
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+_player_last_columns_checked = False
+
+
+def ensure_player_last_choice_columns():
+    """מוסיף עמודות last_* לטבלת players אם חסרות (מסד קיים לפני השינוי)."""
+    try:
+        from sqlalchemy import inspect, text
+        inspector = inspect(db.engine)
+        if not inspector.has_table('players'):
+            return
+        cols = {c['name'] for c in inspector.get_columns('players')}
+        stmts = []
+        if 'last_subject' not in cols:
+            stmts.append('ALTER TABLE players ADD COLUMN last_subject VARCHAR(80)')
+        if 'last_age_group' not in cols:
+            stmts.append('ALTER TABLE players ADD COLUMN last_age_group VARCHAR(40)')
+        if 'last_game_id' not in cols:
+            stmts.append('ALTER TABLE players ADD COLUMN last_game_id VARCHAR(80)')
+        if not stmts:
+            return
+        with db.engine.begin() as conn:
+            for stmt in stmts:
+                conn.execute(text(stmt))
+    except Exception as exc:
+        print(f'WARNING: ensure_player_last_choice_columns: {exc}', flush=True)
+
+
+@app.before_request
+def _ensure_player_last_columns_once():
+    global _player_last_columns_checked
+    if _player_last_columns_checked:
+        return
+    _player_last_columns_checked = True
+    ensure_player_last_choice_columns()
 _cors_origins = os.environ.get('CORS_ORIGINS', '').strip() or '*'
 _origins_list = (
     [o.strip() for o in _cors_origins.split(',') if o.strip()]
@@ -71,6 +106,38 @@ def admin_page():
 
 _DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 _TASKS_JSON = os.path.join(_DATA_DIR, 'tasks.json')
+_CBT_CUSTOM_JSONL = os.path.join(_DATA_DIR, 'cbt_custom_interceptors.jsonl')
+_GAME_LOGIN_EMAILS_JSONL = os.path.join(_DATA_DIR, 'game_login_emails.jsonl')
+
+
+def _append_game_login_email_to_data(
+    email,
+    nickname,
+    game_type=None,
+    subject=None,
+    age_group=None,
+    source='unknown',
+):
+    """שומר התחברות משתמש (אימייל) לקובץ DATA – שורת JSON לכל אירוע."""
+    em = (email or '').strip()
+    nick = (nickname or '').strip()
+    if not em or '@' not in em or len(em) > 320:
+        return
+    try:
+        os.makedirs(_DATA_DIR, exist_ok=True)
+        record = {
+            'email': em,
+            'nickname': nick or None,
+            'game_type': (game_type or '').strip() or None,
+            'subject': (subject or '').strip() or None,
+            'age_group': (age_group or '').strip() or None,
+            'source': source,
+            'ts': time.time(),
+        }
+        with open(_GAME_LOGIN_EMAILS_JSONL, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(record, ensure_ascii=False) + '\n')
+    except OSError as exc:
+        print(f'ERROR: game_login_emails.jsonl append failed: {exc}', flush=True)
 
 
 def _load_tasks_from_json(age_group, subject):
@@ -143,6 +210,66 @@ def get_tasks():
         })
     tasks.extend(_load_tasks_from_json(age_group, subject))
     return jsonify({'age_group': age_group, 'subject': subject, 'tasks': tasks})
+
+
+@app.route('/api/cbt-custom-interceptor', methods=['POST'])
+def cbt_custom_interceptor():
+    """שומר לקובץ DATA שורת JSON: אימייל + טקסט מיירט עצמי (משחק מלחמה / CBT)."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'גוף הבקשה חייב להיות JSON'}), 400
+    email = (data.get('email') or '').strip()
+    custom_text = (data.get('custom_text') or '').strip()
+    if not email:
+        return jsonify({'error': 'נדרש אימייל'}), 400
+    if '@' not in email or len(email) > 320:
+        return jsonify({'error': 'אימייל לא תקין'}), 400
+    if not custom_text:
+        return jsonify({'error': 'נדרש טקסט מיירט'}), 400
+    if len(custom_text) > 8000:
+        return jsonify({'error': 'הטקסט ארוך מדי'}), 400
+    round_id = (data.get('round_id') or '').strip() or None
+    subject = (data.get('subject') or '').strip() or None
+    age_group = (data.get('age_group') or '').strip() or None
+    try:
+        os.makedirs(_DATA_DIR, exist_ok=True)
+        record = {
+            'email': email,
+            'custom_text': custom_text,
+            'round_id': round_id,
+            'subject': subject,
+            'age_group': age_group,
+            'ts': time.time(),
+        }
+        with open(_CBT_CUSTOM_JSONL, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(record, ensure_ascii=False) + '\n')
+    except OSError as e:
+        return jsonify({'error': f'כתיבה לקובץ נכשלה: {e}'}), 500
+    return jsonify({'ok': True})
+
+
+@app.route('/api/game-login-email', methods=['POST'])
+def game_login_email():
+    """שמירת אימייל התחברות ל־DATA (משחקים ללא Socket.io, למשל CBT פתוח מכתובת עם email)."""
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': 'גוף הבקשה חייב להיות JSON'}), 400
+    email = (data.get('email') or '').strip()
+    nickname = (data.get('nickname') or '').strip()
+    if not email or '@' not in email or len(email) > 320:
+        return jsonify({'error': 'אימייל לא תקין'}), 400
+    game_type = (data.get('game_type') or '').strip() or None
+    subject = (data.get('subject') or '').strip() or None
+    age_group = (data.get('age_group') or '').strip() or None
+    _append_game_login_email_to_data(
+        email,
+        nickname,
+        game_type=game_type,
+        subject=subject,
+        age_group=age_group,
+        source='http_game_login',
+    )
+    return jsonify({'ok': True})
 
 
 @app.route('/api/pyramid-stories', methods=['GET'])
@@ -374,26 +501,76 @@ def register_player():
     nickname = (data.get('nickname') or '').strip()
     if not email or not nickname:
         return jsonify({'error': 'אימייל ושם חובה'}), 400
+    subject = (data.get('subject') or '').strip()
+    age_group = (data.get('age_group') or '').strip()
+    game_id = (data.get('game_id') or data.get('last_game_id') or '').strip()
     player = Player.query.filter_by(email=email).first()
     if player:
         player.nickname = nickname
-        db.session.commit()
-        return jsonify(player.to_dict())
-    player = Player(email=email, nickname=nickname)
-    db.session.add(player)
+    else:
+        player = Player(email=email, nickname=nickname)
+        db.session.add(player)
+    if subject:
+        player.last_subject = subject
+    if age_group:
+        player.last_age_group = age_group
+    if game_id:
+        player.last_game_id = game_id
     db.session.commit()
+    _append_game_login_email_to_data(
+        email,
+        nickname,
+        game_type=(data.get('game_type') or '').strip() or None,
+        subject=subject or None,
+        age_group=age_group or None,
+        source='http_register',
+    )
     return jsonify(player.to_dict())
+
+
+def _build_waiting_rooms_list(subject=None, age_group=None, game_type=None):
+    # Source of truth is the live in-memory state; fallback to DB when needed.
+    out = []
+    waiting_states = [r for r in ROOMS_IN_MEMORY.values() if r.get('status') == 'waiting']
+    if waiting_states:
+        for r in waiting_states:
+            if subject and r.get('subject') != subject:
+                continue
+            if age_group and r.get('age_group') != age_group:
+                continue
+            if game_type and r.get('game_type') != game_type:
+                continue
+            out.append({
+                'roomId': r.get('id'),
+                'code': r.get('id'),
+                'maxPlayers': r.get('maxPlayers'),
+                'players': [{'nickname': p.get('nickname')} for p in (r.get('players') or [])],
+                'subject': r.get('subject'),
+                'age_group': r.get('age_group'),
+                'game_type': r.get('game_type')
+            })
+        return out
+
+    rooms = Room.query.filter_by(status='waiting').all()
+    for r in rooms:
+        out.append({
+            'roomId': r.code,
+            'code': r.code,
+            'maxPlayers': r.max_players,
+            'players': [{'nickname': rp.player.nickname} for rp in r.room_players],
+            'subject': None,
+            'age_group': None,
+            'game_type': None
+        })
+    return out
 
 
 @app.route('/api/rooms', methods=['GET'])
 def list_rooms():
-    rooms = Room.query.filter_by(status='waiting').all()
-    return jsonify([{
-        'roomId': r.code,
-        'code': r.code,
-        'maxPlayers': r.max_players,
-        'players': [{'nickname': rp.player.nickname} for rp in r.room_players]
-    } for r in rooms])
+    subject = (request.args.get('subject') or '').strip() or None
+    age_group = (request.args.get('age_group') or '').strip() or None
+    game_type = (request.args.get('game_type') or '').strip() or None
+    return jsonify(_build_waiting_rooms_list(subject=subject, age_group=age_group, game_type=game_type))
 
 
 @app.cli.command()
@@ -409,8 +586,9 @@ def on_connect():
 @socketio.on('register')
 def on_register(data):
     sid = request.sid
-    email = (data.get('email') or '').strip() if data else ''
-    nickname = (data.get('nickname') or '').strip() if data else ''
+    payload = data if isinstance(data, dict) else {}
+    email = (payload.get('email') or '').strip()
+    nickname = (payload.get('nickname') or '').strip()
     if not email or not nickname:
         emit('error', {'message': 'אימייל ושם חובה'})
         return
@@ -418,16 +596,32 @@ def on_register(data):
     if not player:
         player = Player(email=email, nickname=nickname)
         db.session.add(player)
-        db.session.commit()
     else:
         player.nickname = nickname
-        db.session.commit()
+    subj_for_last = (payload.get('subject') or '').strip()
+    ag_for_last = (payload.get('age_group') or '').strip()
+    gid_for_last = (payload.get('game_id') or '').strip()
+    if subj_for_last:
+        player.last_subject = subj_for_last
+    if ag_for_last:
+        player.last_age_group = ag_for_last
+    if gid_for_last:
+        player.last_game_id = gid_for_last
+    db.session.commit()
+    game_type = (payload.get('game_type') or '').strip() or 'legacy_socket'
+    subject = subj_for_last or 'memory'
+    age_group = ag_for_last or 'all'
     log = ConnectionLog(
-        email=email, nickname=nickname, game_type='ndfa_memory',
-        subject='memory', age_group='all'
+        email=email, nickname=nickname, game_type=game_type,
+        subject=subject, age_group=age_group
     )
     db.session.add(log)
     db.session.commit()
+    _append_game_login_email_to_data(
+        email, nickname,
+        game_type=game_type, subject=subject, age_group=age_group,
+        source='socket_register',
+    )
     SOCKET_PLAYER[sid] = {'email': email, 'nickname': nickname, 'player_id': player.id}
     emit('registered', {'player': player.to_dict()})
 
@@ -451,6 +645,9 @@ def on_create_room(data):
         db.session.commit()
     max_players = min(3, max(1, int(data.get('maxPlayers', 1) or 1)))
     pair_count = max(4, min(12, int(data.get('pairCount', 8) or 8)))
+    subject = (data.get('subject') or 'memory').strip()
+    age_group = (data.get('age_group') or 'all').strip()
+    game_type = (data.get('game_type') or subject or 'memory').strip()
     code = generate_room_code()
     room_db = Room(code=code, max_players=max_players, host_socket_id=sid)
     db.session.add(room_db)
@@ -468,7 +665,11 @@ def on_create_room(data):
         'flipped': [],
         'scores': {sid: 0},
         'currentTurnIndex': 0,
-        'pairCount': pair_count
+        'pairCount': pair_count,
+        'subject': subject,
+        'age_group': age_group,
+        'game_type': game_type,
+        'matchSize': 2,
     }
     ROOMS_IN_MEMORY[code] = room_state
     join_room(code)
@@ -477,14 +678,17 @@ def on_create_room(data):
 
 
 @socketio.on('listRooms')
-def on_list_rooms():
-    rooms = Room.query.filter_by(status='waiting').all()
-    list_ = [{
-        'roomId': r.code,
-        'code': r.code,
-        'maxPlayers': r.max_players,
-        'players': [{'nickname': rp.player.nickname} for rp in r.room_players]
-    } for r in rooms]
+def on_list_rooms(data=None):
+    payload = data if isinstance(data, dict) else {}
+    # Socket payload is delivered in data; default no filters for backwards compatibility.
+    # We keep permissive behavior for older clients that do not pass metadata.
+    subject = None
+    age_group = None
+    game_type = None
+    subject = (payload.get('subject') or '').strip() or None
+    age_group = (payload.get('age_group') or '').strip() or None
+    game_type = (payload.get('game_type') or '').strip() or None
+    list_ = _build_waiting_rooms_list(subject=subject, age_group=age_group, game_type=game_type)
     emit('roomsList', list_)
 
 
@@ -528,11 +732,19 @@ def on_join_room(data):
             'flipped': [],
             'scores': {},
             'currentTurnIndex': 0,
-            'pairCount': 8
+            'pairCount': 8,
+            'subject': (data.get('subject') or 'memory').strip(),
+            'age_group': (data.get('age_group') or 'all').strip(),
+            'game_type': (data.get('game_type') or (data.get('subject') or 'memory')).strip(),
+            'matchSize': 2,
         }
         ROOMS_IN_MEMORY[room_id] = room_state
     else:
         room_state.setdefault('pairCount', 8)
+        room_state.setdefault('subject', (data.get('subject') or 'memory').strip())
+        room_state.setdefault('age_group', (data.get('age_group') or 'all').strip())
+        room_state.setdefault('game_type', (data.get('game_type') or (data.get('subject') or 'memory')).strip())
+        room_state.setdefault('matchSize', 2)
     room_state['players'].append({'id': sid, 'nickname': nickname, 'email': email, 'score': 0})
     room_state['scores'][sid] = 0
     join_room(room_id)
@@ -545,14 +757,26 @@ def on_start_game(data):
     sid = request.sid
     room_id = (data.get('roomId') or '').strip().upper()
     room_state = ROOMS_IN_MEMORY.get(room_id)
-    if not room_state or room_state['status'] != 'waiting':
+    if not room_state:
+        emit('error', {'message': 'לא ניתן להתחיל משחק'})
+        return
+    status = room_state.get('status')
+    # waiting — התחלה ראשונה; playing — משחק חדש / החלפת שלב אחרי סיום סיבוב
+    if status not in ('waiting', 'playing'):
         emit('error', {'message': 'לא ניתן להתחיל משחק'})
         return
     if room_state['players'][0]['id'] != sid:
         emit('error', {'message': 'רק יוצר החדר יכול להתחיל'})
         return
-    if len(room_state['players']) < room_state['maxPlayers']:
+    if status == 'waiting' and len(room_state['players']) < room_state['maxPlayers']:
         emit('error', {'message': 'מחכים לעוד שחקן/ים. לא ניתן להתחיל.'})
+        return
+    try:
+        ms = int(data.get('matchSize', 2) or 2)
+    except (TypeError, ValueError):
+        ms = 2
+    if ms not in (2, 3):
+        emit('error', {'message': 'הגדרת משחק לא תקינה (מספר קלפים להפיכה).'})
         return
     room_state['status'] = 'playing'
     custom_deck = data.get('deck') if isinstance(data.get('deck'), list) else None
@@ -579,6 +803,7 @@ def on_start_game(data):
     room_state['flipped'] = []
     room_state['matched'] = []
     room_state['currentTurnIndex'] = 0
+    room_state['matchSize'] = ms
     story = data.get('story') if isinstance(data.get('story'), dict) else None
     if story:
         room_state['story'] = story
@@ -594,14 +819,14 @@ def on_start_game(data):
     emit('gameStarted', payload, room=room_id)
 
 
-def _delayed_no_match(room_id, card_a, card_b, next_idx, next_sid):
+def _delayed_no_match(room_id, card_indices, next_idx, next_sid):
     time.sleep(2)
     room_state = ROOMS_IN_MEMORY.get(room_id)
     if room_state and room_state['status'] == 'playing':
         room_state['flipped'] = []
         room_state['currentTurnIndex'] = next_idx
         socketio.emit('noMatch', {
-            'cardIndices': [card_a, card_b],
+            'cardIndices': list(card_indices),
             'nextTurn': next_sid,
             'room': room_state
         }, room=room_id)
@@ -626,16 +851,20 @@ def on_flip_card(data):
     if card_index < 0 or card_index >= len(room_state['deck']):
         emit('error', {'message': 'בחירת קלף לא תקינה'})
         return
-    if card_index in room_state['flipped'] or len(room_state['flipped']) >= 2:
+    match_size = int(room_state.get('matchSize') or 2)
+    if match_size not in (2, 3):
+        match_size = 2
+    if card_index in room_state['flipped'] or len(room_state['flipped']) >= match_size:
         return
     room_state['flipped'].append(card_index)
     card = room_state['deck'][card_index]
     emit('cardFlipped', {
         'cardIndex': card_index, 'card': card, 'flipped': room_state['flipped']
     }, room=room_id)
-    if len(room_state['flipped']) == 2:
-        a, b = room_state['flipped'][0], room_state['flipped'][1]
-        ca, cb = room_state['deck'][a], room_state['deck'][b]
+    if len(room_state['flipped']) == match_size:
+        indices = list(room_state['flipped'])
+        cards = [room_state['deck'][i] for i in indices]
+
         def _pair_id(card):
             pid = card.get('pairId', card.get('pair_id'))
             if pid is not None:
@@ -651,8 +880,11 @@ def on_flip_card(data):
                     pass
             return None
 
-        pair_a, pair_b = _pair_id(ca), _pair_id(cb)
-        is_match = pair_a is not None and pair_b is not None and pair_a == pair_b
+        pair_ids = [_pair_id(c) for c in cards]
+        is_match = (
+            all(p is not None for p in pair_ids)
+            and len(set(pair_ids)) == 1
+        )
         if is_match:
             room_state['scores'][sid] = room_state['scores'].get(sid, 0) + 1
             for p in room_state['players']:
@@ -660,7 +892,7 @@ def on_flip_card(data):
                     p['score'] = room_state['scores'][sid]
                     break
             room_state['flipped'] = []
-            room_state.setdefault('matched', []).extend([a, b])
+            room_state.setdefault('matched', []).extend(indices)
             # Same player gets another turn after a match (classic memory rule)
             room_payload = {
                 'id': room_state.get('id'),
@@ -673,10 +905,11 @@ def on_flip_card(data):
                 'scores': dict(room_state.get('scores', {})),
                 'currentTurnIndex': room_state.get('currentTurnIndex', 0),
                 'pairCount': room_state.get('pairCount', 8),
+                'matchSize': room_state.get('matchSize', 2),
             }
             emit('match', {
-                'cardIndices': [a, b],
-                'category': ca['category'],
+                'cardIndices': indices,
+                'category': cards[0].get('category', 'memory'),
                 'scores': room_payload['scores'],
                 'scoredPlayerId': sid,
                 'nextTurn': sid,
@@ -686,7 +919,7 @@ def on_flip_card(data):
             next_idx = (room_state['currentTurnIndex'] + 1) % len(room_state['players'])
             next_sid = room_state['players'][next_idx]['id']
             socketio.start_background_task(
-                _delayed_no_match, room_id, a, b, next_idx, next_sid
+                _delayed_no_match, room_id, indices, next_idx, next_sid
             )
 
 

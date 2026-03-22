@@ -77,6 +77,127 @@ h1 {
   border-color: #ffd93d;
   box-shadow: 0 0 0 4px rgba(255,217,61,0.4);
 }
+.form-row select {
+  width: 100%;
+  padding: 0.65rem;
+  border: 3px solid rgba(255,255,255,0.6);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.95);
+  color: #333;
+  font-size: 1rem;
+}
+.form-row select:focus {
+  outline: none;
+  border-color: #ffd93d;
+  box-shadow: 0 0 0 4px rgba(255,217,61,0.4);
+}
+
+.main-menu-box {
+  background: rgba(255, 255, 255, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 16px;
+  padding: 1rem;
+}
+.main-menu-box h2,
+.main-menu-box p {
+  color: #fff;
+}
+.game-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.game-card-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  text-align: left;
+  background: linear-gradient(160deg, #ffffff 0%, #eef2ff 100%);
+  border: 2px solid rgba(99, 102, 241, 0.35);
+  color: #1f2937;
+  min-height: 160px;
+  border-radius: 14px;
+  padding: 0.8rem;
+}
+.game-card-btn.game-card-age-warn {
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.35);
+}
+.game-card-age-hint {
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: #b45309;
+  font-weight: 600;
+}
+.game-card-last {
+  margin-top: auto;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #4338ca;
+}
+.game-card-icon {
+  font-size: 1.7rem;
+}
+.game-card-title {
+  font-size: 1.02rem;
+  font-weight: 700;
+}
+.game-card-meta {
+  font-size: 0.85rem;
+  line-height: 1.25;
+}
+.game-card-current {
+  margin-top: auto;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #4338ca;
+}
+.game-card-start-btn {
+  margin-top: 0.35rem;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.9rem;
+}
+
+.game-card-external-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+  width: 100%;
+}
+
+a.game-card-external-link {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  box-sizing: border-box;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #ffd93d 0%, #ffb347 100%);
+  color: #2d2d2d;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+a.game-card-external-link:hover {
+  transform: scale(1.03);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+}
+
+a.game-card-external-top-link {
+  display: block;
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #4338ca;
+  text-decoration: underline;
+  padding: 0.2rem 0;
+}
 
 button {
   padding: 0.75rem 1.5rem;
@@ -353,6 +474,12 @@ button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
   text-align: center;
   word-break: break-word;
 }
+.score-mini-word.score-mini-math-fraction {
+  font-size: 1.1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+}
 .score-mini-img {
   width: 22px;
   height: 22px;
@@ -531,6 +658,156 @@ button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 }
 .story-actions button { font-size: 0.95rem; padding: 0.5rem 1rem; }
 
+.solutions-screen {
+  max-width: 640px;
+}
+.solutions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  padding: 0.25rem;
+}
+.solution-block {
+  background: rgba(255,255,255,0.95);
+  color: #1e293b;
+  padding: 1rem 1.1rem;
+  border-radius: 14px;
+  text-align: right;
+  direction: rtl;
+  border: 2px solid rgba(59,130,246,0.45);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.solution-topic {
+  display: inline-block;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  background: rgba(219,234,254,0.95);
+  padding: 0.2rem 0.6rem;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+.solution-block .solution-q,
+.solution-block .solution-a,
+.solution-block .solution-exp {
+  margin: 0.35rem 0;
+  line-height: 1.55;
+  font-size: 1rem;
+}
+
+.card-math-question-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.25rem;
+  text-align: center;
+  direction: rtl;
+}
+.card-math-question-with-art {
+  gap: 0.2rem;
+  padding: 0.15rem 0.1rem 0.2rem;
+  justify-content: flex-start;
+}
+.fraction-art-wrap {
+  width: 100%;
+  max-width: 102px;
+  height: 82px;
+  margin: 0 auto;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.12));
+}
+.fraction-art-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.card-math-caption {
+  font-size: 0.78rem !important;
+  line-height: 1.3;
+  font-weight: 700;
+  max-width: 100%;
+  padding: 0 0.15rem;
+}
+.solution-art-wrap {
+  width: 128px;
+  height: 104px;
+  margin: 0 auto 0.65rem;
+  filter: drop-shadow(0 2px 5px rgba(0,0,0,0.1));
+}
+.solution-art-wrap .fraction-art-svg {
+  width: 100%;
+  height: 100%;
+}
+.card-math-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #1e40af;
+  background: rgba(191,219,254,0.95);
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+}
+.card-math-badge--decimal {
+  color: #047857;
+  background: rgba(167,243,208,0.95);
+}
+.card-math-visual-only-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 78px;
+  padding: 0.2rem;
+}
+.fraction-art-wrap--solo {
+  max-width: 112px;
+  height: 92px;
+}
+.card-math-decimal {
+  font-size: clamp(1.35rem, 4vw, 1.85rem) !important;
+  font-weight: 800 !important;
+  color: #065f46 !important;
+  font-variant-numeric: tabular-nums;
+}
+.card-math-fraction-card {
+  font-size: clamp(1.45rem, 4.2vw, 2rem) !important;
+  font-weight: 800 !important;
+}
+.math-match-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fef3c7;
+  text-align: center;
+  line-height: 1.45;
+  max-width: 36rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+.math-match-hint--subtle {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(254,243,199,0.88);
+}
+.card-math-answer {
+  /* שברים ב־מונה/מכנה (לא תווי יוניקוד זעירים) + פונט גדול לקריאות */
+  font-size: clamp(1.55rem, 5.2vw, 2.35rem);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  color: #0f172a;
+}
+.card-front-picture .card-math-answer {
+  font-size: clamp(1.65rem, 5.5vw, 2.5rem);
+}
+
 /* ----- Modal (success) ----- */
 .modal-overlay {
   position: fixed;
@@ -612,11 +889,16 @@ button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
   .card-face { font-size: 1rem; }
   .card-back { font-size: 1.8rem; }
   .card-front-word .card-word-text { font-size: 1.2rem; }
+  .card-math-answer { font-size: clamp(1.35rem, 4.8vw, 2rem); }
+  .card-front-picture .card-math-answer { font-size: clamp(1.45rem, 5vw, 2.1rem); }
+  .fraction-art-wrap { max-width: 88px; height: 72px; }
+  .card-math-caption { font-size: 0.72rem !important; }
   .card-picture-img { width: 56px; height: 56px; }
   .card-picture-fallback { font-size: 2.5rem; }
   .score-card { min-width: 140px; }
   .score-mini-pair { min-width: 48px; min-height: 48px; padding: 0.25rem; }
   .score-mini-word { font-size: 0.65rem; }
+  .score-mini-word.score-mini-math-fraction { font-size: 0.95rem; }
   .score-mini-img { width: 18px; height: 18px; }
 }
 

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { io } from 'socket.io-client'
 import { buildPyramidDeckWithStory, shuffleDeck, READING_CATEGORY, getRandomPyramidStoryId } from './readingPairs'
+import { buildFractionMemoryDeck, MATH_FRACTION_CATEGORY } from '@math-games/fractionMemory.js'
+import { FractionQuestionArt } from '@math-games/FractionQuestionArt.jsx'
 
 const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/72x72'
 function getTwemojiUrl(emoji) {
@@ -179,9 +181,181 @@ function getBackendUrl() {
 const API_BASE = getBackendUrl()
 const SOCKET_URL = API_BASE
 const PAIR_COUNT = 8
+const AGE_OPTIONS = [
+  { value: 'adult', label: 'מבוגרים' },
+  { value: 'highschool', label: 'תיכון' },
+  { value: 'middleschool', label: 'חטיבת ביניים' },
+  { value: 'elementary', label: 'יסודי' },
+  { value: 'kindergarten', label: 'גן' }
+]
+const READING_HUB_SESSION_KEY = 'reading_hub_session_v1'
+
+function loadHubSession() {
+  try {
+    const raw = localStorage.getItem(READING_HUB_SESSION_KEY)
+    if (!raw) return null
+    const o = JSON.parse(raw)
+    if (!o || typeof o !== 'object') return null
+    return o
+  } catch {
+    return null
+  }
+}
+
+/** נשמר רק מזהה משחק אחרון – לא אימייל/שם/גיל (השלמה: דפדפן / משתמש) */
+function saveLastPlayedGameOnly(gameId) {
+  try {
+    if (!gameId || typeof gameId !== 'string') return
+    localStorage.setItem(READING_HUB_SESSION_KEY, JSON.stringify({ lastPlayedGameId: gameId }))
+  } catch {
+    /* ignore */
+  }
+}
+
+/** כתובת מלאה למשחק חיצוני (מוכן ל-<a href>) או null אם חסר env / לא נבחר גיל.
+ *  גיל מהרשימה בכרטיס (ageGroups) משמש רק לאזהרת UI; הפרמטר age_group בכתובת הוא הגיל שנבחר בתפריט. */
+function buildExternalGameLaunchUrl(game, selectedAgeGroup, emailVal, nicknameVal) {
+  if (game.launchType !== 'external' || !game.urlEnvKey) return null
+  if (!selectedAgeGroup) return null
+  const base = import.meta.env[game.urlEnvKey]
+  if (!base || typeof base !== 'string') return null
+  const baseStr = base.trim()
+  try {
+    const parsed = baseStr.startsWith('/')
+      ? new URL(baseStr, typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5175')
+      : new URL(baseStr)
+    parsed.searchParams.set('subject', game.subject)
+    parsed.searchParams.set('age_group', selectedAgeGroup)
+    parsed.searchParams.set('from', 'reading_main_menu')
+    const em = (emailVal || '').trim()
+    const nick = (nicknameVal || '').trim()
+    if (em) parsed.searchParams.set('email', em)
+    if (nick) parsed.searchParams.set('nickname', nick)
+    return parsed.toString()
+  } catch {
+    return null
+  }
+}
+
+function clearHubSession() {
+  try {
+    localStorage.removeItem(READING_HUB_SESSION_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+const GAME_CATALOG = [
+  {
+    id: 'reading',
+    title: 'זיכרון קריאה',
+    icon: '📖',
+    subject: 'reading',
+    ageGroups: ['adult', 'highschool', 'middleschool', 'elementary', 'kindergarten'],
+    launchType: 'internal'
+  },
+  {
+    id: 'math_fractions_memory',
+    title: 'זיכרון שברים (יסודי)',
+    icon: '🔢',
+    subject: 'math_fractions_elementary',
+    ageGroups: ['elementary'],
+    launchType: 'internal'
+  },
+  {
+    id: 'math_english',
+    title: 'מתמטיקה ואנגלית',
+    icon: '🧮',
+    subject: 'math_english',
+    ageGroups: ['highschool', 'middleschool', 'elementary'],
+    launchType: 'external',
+    urlEnvKey: 'VITE_MATH_ENGLISH_GAME_URL'
+  },
+  {
+    id: 'ndfa',
+    title: 'זיכרון NDFA',
+    icon: '🧠',
+    subject: 'ndfa',
+    ageGroups: ['adult', 'highschool', 'middleschool', 'elementary', 'kindergarten'],
+    launchType: 'external',
+    urlEnvKey: 'VITE_NDFA_GAME_URL'
+  },
+  {
+    id: 'ronit',
+    title: 'רונית חכם - המכשפות',
+    icon: '🎯',
+    subject: 'ronit_reading',
+    ageGroups: ['elementary', 'kindergarten'],
+    launchType: 'external',
+    urlEnvKey: 'VITE_RONIT_GAME_URL'
+  },
+  {
+    id: 'cbt',
+    title: 'מלחמה',
+    icon: '🛡️',
+    subject: 'cbt_youth',
+    ageGroups: ['middleschool', 'highschool'],
+    launchType: 'external',
+    urlEnvKey: 'VITE_CBT_GAME_URL'
+  }
+]
+
+function collectSolutionsFromDeck(deckList) {
+  const byPair = {}
+  if (!Array.isArray(deckList)) return []
+  deckList.forEach((c) => {
+    const pid = c.pairId
+    if (pid === undefined) return
+    if (!byPair[pid]) byPair[pid] = { pairId: pid }
+    const row = byPair[pid]
+    if (c.explanation) row.explanation = c.explanation
+    if (c.mathTopic) row.mathTopic = c.mathTopic
+    if (c.matchSize) row.matchSize = c.matchSize
+    if (c.pairVariant) row.pairVariant = c.pairVariant
+    if (c.cardRole === 'visual' && c.visual) row.visual = c.visual
+    if (c.cardRole === 'decimal' && c.text) row.decimal = c.text
+    if (c.cardRole === 'fraction' && c.text) row.fraction = c.text
+    if (c.type === 'word' && !c.cardRole && c.text) row.question = c.text
+    if (c.type === 'picture' && !c.cardRole && c.text) row.answer = c.text
+  })
+  return Object.keys(byPair)
+    .map((k) => {
+      const r = byPair[k]
+      let question = r.question
+      if (r.matchSize === 3) {
+        question = 'שלב 4: הרם 3 קלפים — ציור, עשרוני ושבר לאותה כמות.'
+      } else if (r.pairVariant === 'decimal_fraction' || (r.decimal && r.fraction && !r.visual)) {
+        question = `התאימו עשרוני לשבר: ${r.decimal} ↔ ${r.fraction}`
+      } else if (r.pairVariant === 'fraction_visual' || (r.fraction && r.visual && r.matchSize !== 3)) {
+        question = `התאימו שבר לציור (הציור בלי מלל): ${r.fraction}`
+      }
+      const answer =
+        r.fraction && r.decimal ? `${r.fraction} = ${r.decimal}` : (r.fraction || r.decimal || r.answer || '—')
+      return {
+        pairId: Number(k),
+        question,
+        answer,
+        decimal: r.decimal,
+        fraction: r.fraction,
+        visual: r.visual,
+        explanation: r.explanation,
+        mathTopic: r.mathTopic,
+        matchSize: r.matchSize
+      }
+    })
+    .sort((a, b) => a.pairId - b.pairId)
+}
+
+function mathTopicLabel(topic) {
+  if (topic === 'triple') return 'שלישייה (שלב 4)'
+  if (topic === 'decimal_pair') return 'עשרוני ↔ שבר'
+  if (topic === 'part') return 'שבר ↔ ציור'
+  if (topic === 'decimal') return 'שבר עשרוני'
+  return ''
+}
 
 function App() {
-  const [screen, setScreen] = useState('login')
+  const [screen, setScreen] = useState('menu')
   const [screenHistory, setScreenHistory] = useState([])
   const [email, setEmail] = useState('')
   const [nickname, setNickname] = useState('')
@@ -208,6 +382,10 @@ function App() {
   const [newComboVoice, setNewComboVoice] = useState('')
   const [gameLevel, setGameLevel] = useState(1)
   const [currentGameStory, setCurrentGameStory] = useState(null)
+  const [selectedSubject, setSelectedSubject] = useState('reading')
+  const [selectedAgeGroup, setSelectedAgeGroup] = useState('')
+  const [lastPlayedGameId, setLastPlayedGameId] = useState('')
+  const [menuRoomsBySubject, setMenuRoomsBySubject] = useState({})
   const gameDisplayRef = useRef({ scores: {}, matched: [] })
   const currentGameStoryRef = useRef(null)
   const [storyMode, setStoryMode] = useState('game') // 'game' | 'pyramid'
@@ -218,6 +396,22 @@ function App() {
   const streamRef = useRef(null)
   const prevScreenRef = useRef(null)
   const isGoingBackRef = useRef(false)
+  const lastRegisteredRef = useRef({ email: '', nickname: '' })
+  const hubModeRef = useRef('reading')
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const s = loadHubSession()
+    const lp =
+      (s && typeof s.lastPlayedGameId === 'string' && s.lastPlayedGameId) ||
+      (s && typeof s.selectedGameId === 'string' && s.selectedGameId) ||
+      ''
+    if (lp) setLastPlayedGameId(lp)
+    if (s && (s.email || s.nickname || s.selectedAgeGroup || s.selectedSubject)) {
+      if (lp) saveLastPlayedGameOnly(lp)
+      else localStorage.removeItem(READING_HUB_SESSION_KEY)
+    }
+  }, [])
 
   useEffect(() => {
     const prev = prevScreenRef.current
@@ -258,9 +452,25 @@ function App() {
     if (ctx.state === 'suspended') ctx.resume().catch(() => {})
   }
 
-  const connectSocket = useCallback((loginEmail, loginNickname) => {
+  const connectSocket = useCallback((loginEmail, loginNickname, registerOverrides = null) => {
     const em = (loginEmail != null ? loginEmail : email).toString().trim()
     const nick = (loginNickname != null ? loginNickname : nickname).toString().trim()
+    const regSubject =
+      registerOverrides && registerOverrides.subject != null && registerOverrides.subject !== ''
+        ? registerOverrides.subject
+        : selectedSubject
+    const regAgeGroup =
+      registerOverrides && registerOverrides.ageGroup != null && registerOverrides.ageGroup !== ''
+        ? registerOverrides.ageGroup
+        : selectedAgeGroup
+    const regGameId =
+      registerOverrides && registerOverrides.gameId != null && registerOverrides.gameId !== ''
+        ? registerOverrides.gameId
+        : undefined
+    hubModeRef.current =
+      registerOverrides && registerOverrides.hubMode === 'math_fractions' ? 'math_fractions' : 'reading'
+    const regGameType =
+      hubModeRef.current === 'math_fractions' ? 'math_fraction_memory' : 'reading_memory'
     const isRender = SOCKET_URL && SOCKET_URL.includes('onrender.com')
     let currentSocket = null
     let retryTimeoutId = null
@@ -280,7 +490,14 @@ function App() {
       s.on('connect', () => {
         setError('')
         setSocket(s)
-        s.emit('register', { email: em, nickname: nick })
+        s.emit('register', {
+          email: em,
+          nickname: nick,
+          game_type: regGameType,
+          subject: regSubject,
+          age_group: regAgeGroup,
+          game_id: regGameId
+        })
       })
       s.on('connect_error', () => {
         s.disconnect()
@@ -295,7 +512,15 @@ function App() {
         if (reason === 'io server disconnect' || reason === 'io client disconnect') return
         setError('התנתקת מהשרת. נסה להתחבר שוב.')
       })
-      s.on('registered', () => setScreen('lobby'))
+      s.on('registered', () => {
+        lastRegisteredRef.current = { email: em, nickname: nick }
+        const lp = regGameId != null && regGameId !== '' ? String(regGameId) : ''
+        if (lp) {
+          setLastPlayedGameId(lp)
+          saveLastPlayedGameOnly(lp)
+        }
+        setScreen('lobby')
+      })
       s.on('error', (data) => setError(data?.message || 'שגיאה'))
       s.on('roomCreated', (data) => {
         setRoomId(data.roomId)
@@ -327,9 +552,15 @@ function App() {
         setDeck(data.deck || [])
         setFlipped([])
         setMatched([])
-        if (data.story && data.story.text) {
+        if (hubModeRef.current === 'math_fractions') {
+          currentGameStoryRef.current = null
+          setCurrentGameStory(null)
+        } else if (data.story && data.story.text) {
           currentGameStoryRef.current = data.story
           setCurrentGameStory(data.story)
+        } else {
+          currentGameStoryRef.current = null
+          setCurrentGameStory(null)
         }
         setScreen('game')
         setError('')
@@ -359,9 +590,21 @@ function App() {
         }
         const myNewScore = newScores[s.id] ?? 0
         const isMe = scoredId === s.id
+        const isMathHub = hubModeRef.current === 'math_fractions'
+        const cat = isMathHub ? MATH_FRACTION_CATEGORY : READING_CATEGORY
+        const triple =
+          isMathHub && Array.isArray(data.cardIndices) && data.cardIndices.length >= 3
         const text = isMe
-          ? `מצאת זוג! המילה מתאימה לתמונה. קיבלת נקודה. סה״כ ${myNewScore} נקודות`
-          : 'שחקן אחר מצא זוג וקיבל נקודה.'
+          ? isMathHub
+            ? triple
+              ? `מצאת שלישייה (ציור + עשרוני + שבר)! +1 נקודה. סה״כ ${myNewScore} נקודות`
+              : `מצאת זוג מתאים! +1 נקודה. סה״כ ${myNewScore} נקודות`
+            : `מצאת זוג! המילה מתאימה לתמונה. קיבלת נקודה. סה״כ ${myNewScore} נקודות`
+          : isMathHub
+            ? triple
+              ? 'שחקן אחר מצא שלישייה מתאימה וקיבל נקודה.'
+              : 'שחקן אחר מצא זוג מתאים וקיבל נקודה.'
+            : 'שחקן אחר מצא זוג וקיבל נקודה.'
         audioContextRefForCombo.current = audioContextRef.current
         if (successCombosRef.current.length > 0) {
           playSuccessVoice(isMe)
@@ -370,8 +613,8 @@ function App() {
           playSuccessVoice(isMe)
         }
         setMatchModal({
-          title: READING_CATEGORY.title,
-          emoji: READING_CATEGORY.emoji,
+          title: cat.title,
+          emoji: cat.emoji,
           text
         })
       })
@@ -390,7 +633,7 @@ function App() {
         currentSocket.disconnect()
       }
     }
-  }, [email, nickname])
+  }, [email, nickname, selectedSubject, selectedAgeGroup])
 
   useEffect(() => {
     if (screen === 'lobby' && socket) socket.emit('listRooms')
@@ -540,29 +783,152 @@ function App() {
     if (url) new Audio(url).play().catch(() => {})
   }
 
-  const handleLogin = async (e) => {
-    e.preventDefault()
+  const handleClearHubUser = () => {
+    clearHubSession()
+    lastRegisteredRef.current = { email: '', nickname: '' }
+    setEmail('')
+    setNickname('')
+    setSelectedAgeGroup('')
+    setLastPlayedGameId('')
     setError('')
+    if (socket) {
+      try {
+        socket.removeAllListeners()
+      } catch (_) {
+        /* ignore */
+      }
+      socket.disconnect()
+      setSocket(null)
+    }
+  }
+
+  const handleStartFromMenu = (game) => {
+    if (!selectedAgeGroup) {
+      setError('נא לבחור קבוצת גיל')
+      return
+    }
+
+    setSelectedSubject(game.subject)
+    setError('')
+
+    if (game.launchType === 'internal') {
+      if (!game.ageGroups.includes(selectedAgeGroup)) {
+        setError(`קבוצת הגיל שנבחרה אינה זמינה עבור ${game.title}`)
+        return
+      }
+      const em = email.trim()
+      const nick = nickname.trim()
+      if (!em || !nick) {
+        setError('נא למלא אימייל ושם במשחק בתפריט לפני כניסה למשחק')
+        return
+      }
+      const previousInternalGameId = lastPlayedGameId
+      hubModeRef.current = game.id === 'math_fractions_memory' ? 'math_fractions' : 'reading'
+      setLastPlayedGameId(game.id)
+      saveLastPlayedGameOnly(game.id)
+      const apiGameType =
+        game.id === 'math_fractions_memory' ? 'math_fraction_memory' : 'reading_memory'
+      fetch(`${API_BASE}/api/players`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: em,
+          nickname: nick,
+          game_type: apiGameType,
+          subject: game.subject,
+          age_group: selectedAgeGroup,
+          game_id: game.id
+        })
+      }).catch(() => {})
+
+      const regOpts = {
+        subject: game.subject,
+        ageGroup: selectedAgeGroup,
+        gameId: game.id,
+        hubMode: hubModeRef.current
+      }
+      if (
+        socket &&
+        socket.connected &&
+        lastRegisteredRef.current.email === em &&
+        lastRegisteredRef.current.nickname === nick &&
+        previousInternalGameId === game.id
+      ) {
+        setScreen('lobby')
+        return
+      }
+      if (socket) {
+        try {
+          socket.removeAllListeners()
+        } catch (_) {
+          /* ignore */
+        }
+        socket.disconnect()
+        setSocket(null)
+      }
+      connectSocket(em, nick, regOpts)
+      return
+    }
+
     const em = email.trim()
     const nick = nickname.trim()
     if (!em || !nick) {
-      setError('אימייל ושם חובה')
+      setError('נא למלא אימייל ושם במשחק בתפריט לפני כניסה למשחק')
       return
     }
-    setEmail(em)
-    setNickname(nick)
-    if (typeof window !== 'undefined' && SOCKET_URL.includes('onrender.com')) {
-      setError('מעיר את השרת...')
+    const launchUrl = buildExternalGameLaunchUrl(game, selectedAgeGroup, em, nick)
+    if (!launchUrl) {
+      const externalUrl = import.meta.env[game.urlEnvKey]
+      if (!externalUrl || typeof externalUrl !== 'string') {
+        setError(`חסר ${game.urlEnvKey}. יש להגדיר משתנה סביבה כדי לפתוח את ${game.title}.`)
+        return
+      }
       try {
-        const ctrl = new AbortController()
-        const t = setTimeout(() => ctrl.abort(), 60000)
-        await fetch(`${RENDER_BACKEND}/api/health`, { signal: ctrl.signal })
-        clearTimeout(t)
-      } catch (_) {}
-      setError('')
+        const u = externalUrl.trim()
+        if (!u) throw new Error('empty')
+        if (u.startsWith('/')) {
+          if (typeof window === 'undefined') throw new Error('no window')
+          void new URL(u, window.location.origin)
+        } else {
+          void new URL(u)
+        }
+      } catch {
+        setError(`כתובת לא תקינה ב-${game.urlEnvKey}`)
+        return
+      }
+      setError(`לא ניתן לבנות כתובת כניסה ל«${game.title}». נא לבחור קבוצת גיל.`)
+      return
     }
-    connectSocket(em, nick)
+    setLastPlayedGameId(game.id)
+    saveLastPlayedGameOnly(game.id)
+    /* ניווט באותו חלון; אם הכתובת באותו מקור כמו READING (למשל /cbt דרך proxy) – בלי top.assign שמפיל chrome-error ב-preview */
+    if (typeof window !== 'undefined') window.location.assign(launchUrl)
   }
+
+  useEffect(() => {
+    if (screen !== 'menu') return
+    let cancelled = false
+    const loadRooms = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/rooms`)
+        if (!res.ok) throw new Error('failed to load rooms')
+        const rows = await res.json()
+        if (!Array.isArray(rows)) throw new Error('invalid rooms payload')
+        const grouped = {}
+        for (const row of rows) {
+          const key = row?.subject || 'unknown'
+          if (!grouped[key]) grouped[key] = []
+          grouped[key].push(row)
+        }
+        if (!cancelled) setMenuRoomsBySubject(grouped)
+      } catch (_) {
+        if (!cancelled) setMenuRoomsBySubject({})
+      }
+    }
+    loadRooms()
+    const id = setInterval(loadRooms, 5000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [screen])
 
   const handleCreateRoom = () => {
     setError('')
@@ -570,6 +936,8 @@ function App() {
     socket.emit('createRoom', {
       maxPlayers: maxPlayers,
       pairCount: PAIR_COUNT,
+      subject: selectedSubject,
+      age_group: selectedAgeGroup,
       email,
       nickname
     })
@@ -578,12 +946,26 @@ function App() {
   const handleJoinRoom = (code) => {
     setError('')
     if (!socket || !code) return
-    socket.emit('joinRoom', { roomId: code.trim().toUpperCase(), email, nickname })
+    socket.emit('joinRoom', {
+      roomId: code.trim().toUpperCase(),
+      subject: selectedSubject,
+      age_group: selectedAgeGroup,
+      email,
+      nickname
+    })
   }
 
   const handleStartGame = () => {
     if (!socket) return
     const pairCount = room?.pairCount ?? PAIR_COUNT
+    if (hubModeRef.current === 'math_fractions') {
+      const { deck, matchSize } = buildFractionMemoryDeck(pairCount, gameLevel)
+      const customDeck = shuffleDeck(deck)
+      currentGameStoryRef.current = null
+      setCurrentGameStory(null)
+      socket.emit('startGame', { roomId, deck: customDeck, matchSize })
+      return
+    }
     const storyId = getRandomPyramidStoryId()
     currentGameStoryIdRef.current = storyId
     const { deck, story } = buildPyramidDeckWithStory(pairCount, gameLevel, storyId)
@@ -597,6 +979,14 @@ function App() {
   const handleReplay = () => {
     if (!socket || !room) return
     const pairCount = room.pairCount ?? PAIR_COUNT
+    if (hubModeRef.current === 'math_fractions') {
+      const { deck, matchSize } = buildFractionMemoryDeck(pairCount, gameLevel)
+      const deckToUse = shuffleDeck(deck)
+      currentGameStoryRef.current = null
+      setCurrentGameStory(null)
+      socket.emit('startGame', { roomId, deck: deckToUse, matchSize })
+      return
+    }
     const storyId = getRandomPyramidStoryId()
     currentGameStoryIdRef.current = storyId
     const { deck, story } = buildPyramidDeckWithStory(pairCount, gameLevel, storyId)
@@ -612,6 +1002,14 @@ function App() {
     if (!socket || !room) return
     setGameLevel(level)
     const pairCount = room.pairCount ?? PAIR_COUNT
+    if (hubModeRef.current === 'math_fractions') {
+      const { deck, matchSize } = buildFractionMemoryDeck(pairCount, level)
+      const deckToUse = shuffleDeck(deck)
+      currentGameStoryRef.current = null
+      setCurrentGameStory(null)
+      socket.emit('startGame', { roomId, deck: deckToUse, matchSize })
+      return
+    }
     const storyId = currentGameStoryIdRef.current ?? getRandomPyramidStoryId()
     currentGameStoryIdRef.current = storyId
     const { deck, story } = buildPyramidDeckWithStory(pairCount, level, storyId, currentGamePairIndicesRef.current)
@@ -621,6 +1019,15 @@ function App() {
     setCurrentGameStory(story)
     socket.emit('startGame', { roomId, deck: deckToUse, story })
     /* מצב המשחק מתאפס רק ב-gameStarted – מונע race ו"כל הקלפים נפתחים" */
+  }
+
+  const handleShowSolutions = () => {
+    if (!Array.isArray(deck) || deck.length === 0) {
+      setError('אין קלפים במשחק הנוכחי – לא ניתן להציג פתרונות.')
+      return
+    }
+    setError('')
+    setScreen('solutions')
   }
 
   const handleShowStory = () => {
@@ -635,7 +1042,9 @@ function App() {
 
   const handleFlip = (cardIndex) => {
     if (!socket || !room || room.status !== 'playing') return
-    if (flipped.length >= 2 || flipped.includes(cardIndex) || matched.includes(cardIndex)) return
+    const ms = room.matchSize != null ? Number(room.matchSize) : 2
+    const need = ms === 3 ? 3 : 2
+    if (flipped.length >= need || flipped.includes(cardIndex) || matched.includes(cardIndex)) return
     const currentId = room.players[room.currentTurnIndex]?.id
     if (socket.id !== currentId) return
     resumeAudioContext()
@@ -662,6 +1071,45 @@ function App() {
 
   function renderCardFront(card) {
     if (!card) return '?'
+    if (card.category === 'math_fractions') {
+      if (card.visualOnly === true && card.visual) {
+        return (
+          <span className="card-math-visual-only-wrap" aria-hidden>
+            <span className="fraction-art-wrap fraction-art-wrap--solo">
+              <FractionQuestionArt visual={card.visual} />
+            </span>
+          </span>
+        )
+      }
+      if (card.type === 'picture' && card.cardRole === 'fraction' && card.text) {
+        return <span className="card-word-text card-math-answer">{card.text}</span>
+      }
+      if (card.type === 'picture' && card.text) {
+        return <span className="card-word-text card-math-answer">{card.text || '?'}</span>
+      }
+      if (card.type === 'word' && card.cardRole === 'decimal') {
+        return (
+          <span className="card-math-question-wrap">
+            <span className="card-math-badge card-math-badge--decimal">עשרוני</span>
+            <span className="card-word-text card-math-decimal">{card.text || '?'}</span>
+          </span>
+        )
+      }
+      if (card.type === 'word' && card.cardRole === 'fraction') {
+        return (
+          <span className="card-math-question-wrap">
+            <span className="card-math-badge">שבר</span>
+            <span className="card-word-text card-math-fraction-card">{card.text || '?'}</span>
+          </span>
+        )
+      }
+      return (
+        <span className="card-math-question-wrap">
+          <span className="card-math-badge">שאלה</span>
+          <span className="card-word-text">{card.text || '?'}</span>
+        </span>
+      )
+    }
     if (card.type === 'picture' && card.emoji) {
       const imgUrl = getTwemojiUrl(card.emoji)
       if (!imgUrl) return <span className="card-picture-fallback">{card.emoji}</span>
@@ -675,10 +1123,16 @@ function App() {
     return <span className="card-word-text">{card.text || card.category || '?'}</span>
   }
 
+  const isMathFractionHub = selectedSubject === 'math_fractions_elementary'
+
   return (
     <div className="app">
-      <h1>משחק זיכרון – התאמת תמונה למילה</h1>
-      <p className="subtitle">ראשית לימוד קריאה · לשניים (או עד 3 שחקנים)</p>
+      <h1>{isMathFractionHub ? 'משחק זיכרון – שברים (יסודי)' : 'משחק זיכרון – התאמת תמונה למילה'}</h1>
+      <p className="subtitle">
+        {isMathFractionHub
+          ? 'זיהוי חלק משלם והמרה לשבר עשרוני · לשניים (או עד 3 שחקנים)'
+          : 'ראשית לימוד קריאה · לשניים (או עד 3 שחקנים)'}
+      </p>
 
       <div className="top-nav">
         <button type="button" className="top-nav-btn" onClick={goBack} disabled={screenHistory.length === 0}>
@@ -689,33 +1143,109 @@ function App() {
             <button type="button" className={`top-nav-small ${gameLevel === 1 ? 'active' : ''}`} onClick={() => handleSelectLevelFromTopNav(1)}>שלב 1</button>
             <button type="button" className={`top-nav-small ${gameLevel === 2 ? 'active' : ''}`} onClick={() => handleSelectLevelFromTopNav(2)}>שלב 2</button>
             <button type="button" className={`top-nav-small ${gameLevel === 3 ? 'active' : ''}`} onClick={() => handleSelectLevelFromTopNav(3)}>שלב 3</button>
-            <button type="button" className={`top-nav-small ${gameLevel === 4 ? 'active' : ''}`} onClick={() => handleSelectLevelFromTopNav(4)}>שלב 4</button>
-            {(screen === 'game' || screen === 'story') && (
+            <button type="button" className={`top-nav-small ${gameLevel === 4 ? 'active' : ''}`} onClick={() => handleSelectLevelFromTopNav(4)}>{isMathFractionHub ? 'שלב 4 (הרם 3)' : 'שלב 4'}</button>
+            {(screen === 'game' || screen === 'story' || screen === 'solutions') && (
               <button type="button" className="top-nav-small" onClick={handleReplay}>משחק חדש</button>
             )}
           </span>
         )}
       </div>
 
-      {screen === 'login' && (
+      {screen === 'menu' && (
         <>
-          <form onSubmit={handleLogin}>
+          <div className="main-menu-box">
+            <h2>תפריט ראשי</h2>
+            <p>
+              מלאו <strong>אימייל, שם וגיל</strong> בכל כניסה (הדפדפן יכול להשלים לבד כמו בטפסים רגילים). השרת שומר זהות
+              בהתחברות למשחק הפנימי. <strong>לא</strong> נשמרים אצלנו בשמירה מקומית – רק סימון &quot;אחרון ששיחקת&quot; על משחק.
+            </p>
             <div className="form-row">
-              <label>אימייל</label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" />
+              <label>קבוצת גיל</label>
+              <select
+                value={selectedAgeGroup}
+                onChange={(e) => setSelectedAgeGroup(e.target.value)}
+                autoComplete="off"
+                name="age_group"
+              >
+                <option value="">בחר קבוצת גיל...</option>
+                {AGE_OPTIONS.map((a) => (
+                  <option key={a.value} value={a.value}>{a.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-row">
+              <label>אימייל (זהות גלובלית לכל המשחקים)</label>
+              <input
+                type="email"
+                name="email"
+                autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your@email.com"
+              />
             </div>
             <div className="form-row">
               <label>שם במשחק</label>
-              <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="השם שלי" />
+              <input
+                type="text"
+                name="nickname"
+                autoComplete="nickname"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder="השם שלי"
+              />
+            </div>
+            <p className="voice-manage-link-wrap">
+              <button type="button" className="link-btn" onClick={() => setScreen('voiceManage')}>
+                ניהול קולות הצלחה (צליל + קול)
+              </button>
+              <button type="button" className="link-btn" onClick={handleClearHubUser}>
+                ניקוי שמירה מקומית (אחרון ששיחקת) וניתוק
+              </button>
+            </p>
+            <div className="game-cards-grid">
+              {GAME_CATALOG.map((game) => {
+                const ageLabels = AGE_OPTIONS
+                  .filter((a) => game.ageGroups.includes(a.value))
+                  .map((a) => a.label)
+                const ageMatches = !selectedAgeGroup || game.ageGroups.includes(selectedAgeGroup)
+                const waitingRooms = menuRoomsBySubject[game.subject] || []
+                const waitingCount = waitingRooms.length
+                const waitingNames = waitingRooms
+                  .flatMap((r) => (Array.isArray(r.players) ? r.players : []))
+                  .map((p) => p?.nickname)
+                  .filter(Boolean)
+                  .slice(0, 5)
+                return (
+                  <div
+                    key={game.id}
+                    className={`game-card-btn ${selectedAgeGroup && !ageMatches ? 'game-card-age-warn' : ''}`}
+                  >
+                    <span className="game-card-icon">{game.icon}</span>
+                    <span className="game-card-title">{game.title}</span>
+                    {selectedAgeGroup && !ageMatches && (
+                      <span className="game-card-age-hint">לא תואם לגיל שנבחר – אפשר לשנות גיל או לנסות (יוצגת שגיאה)</span>
+                    )}
+                    <span className="game-card-meta">נושא: {game.subject}</span>
+                    <span className="game-card-meta">גילים: {ageLabels.join(', ')}</span>
+                    <span className="game-card-meta">חדרים ממתינים: {waitingCount}</span>
+                    <span className="game-card-meta">
+                      מחוברים: {waitingNames.length > 0 ? waitingNames.join(', ') : 'אין'}
+                    </span>
+                    <button type="button" className="game-card-start-btn" onClick={() => handleStartFromMenu(game)}>
+                      {game.launchType === 'internal'
+                        ? 'פתיחה ויצירת/הצטרפות למשחק'
+                        : 'כניסה למשחק'}
+                    </button>
+                    {game.id === lastPlayedGameId && (
+                      <span className="game-card-last">אחרון ששיחקת (אפשר לבחור אחר)</span>
+                    )}
+                  </div>
+                )
+              })}
             </div>
             {error && <p className="error-msg">{error}</p>}
-            <button type="submit">התחבר והמשך</button>
-          </form>
-          <p className="voice-manage-link-wrap">
-            <button type="button" className="link-btn" onClick={() => setScreen('voiceManage')}>
-              ניהול קולות הצלחה (צליל + קול) / Manage success voice+sound
-            </button>
-          </p>
+          </div>
         </>
       )}
 
@@ -795,7 +1325,7 @@ function App() {
             </ul>
           </div>
           <p className="voice-manage-link-wrap">
-            <button type="button" className="link-btn" onClick={() => setScreen('login')}>חזרה להתחברות</button>
+            <button type="button" className="link-btn" onClick={() => setScreen('menu')}>חזרה לתפריט ראשי</button>
           </p>
         </div>
       )}
@@ -839,10 +1369,21 @@ function App() {
             <div className="level-select-wrap">
               <p>בחר שלב:</p>
               <span className="level-buttons">
-                <button type="button" className={gameLevel === 1 ? 'active' : ''} onClick={() => setGameLevel(1)}>שלב 1 (מילה אחת)</button>
-                <button type="button" className={gameLevel === 2 ? 'active' : ''} onClick={() => setGameLevel(2)}>שלב 2 (שתי מילים)</button>
-                <button type="button" className={gameLevel === 3 ? 'active' : ''} onClick={() => setGameLevel(3)}>שלב 3 (3 מילים)</button>
-                <button type="button" className={gameLevel === 4 ? 'active' : ''} onClick={() => setGameLevel(4)}>שלב 4 (משפט שלם)</button>
+                {isMathFractionHub ? (
+                  <>
+                    <button type="button" className={gameLevel === 1 ? 'active' : ''} onClick={() => setGameLevel(1)}>שלב 1</button>
+                    <button type="button" className={gameLevel === 2 ? 'active' : ''} onClick={() => setGameLevel(2)}>שלב 2</button>
+                    <button type="button" className={gameLevel === 3 ? 'active' : ''} onClick={() => setGameLevel(3)}>שלב 3</button>
+                    <button type="button" className={gameLevel === 4 ? 'active' : ''} onClick={() => setGameLevel(4)}>שלב 4 (הרם 3)</button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" className={gameLevel === 1 ? 'active' : ''} onClick={() => setGameLevel(1)}>שלב 1 (מילה אחת)</button>
+                    <button type="button" className={gameLevel === 2 ? 'active' : ''} onClick={() => setGameLevel(2)}>שלב 2 (שתי מילים)</button>
+                    <button type="button" className={gameLevel === 3 ? 'active' : ''} onClick={() => setGameLevel(3)}>שלב 3 (3 מילים)</button>
+                    <button type="button" className={gameLevel === 4 ? 'active' : ''} onClick={() => setGameLevel(4)}>שלב 4 (משפט שלם)</button>
+                  </>
+                )}
               </span>
             </div>
           )}
@@ -864,7 +1405,16 @@ function App() {
         function getPairsForPlayer(deckList, indices) {
           if (!Array.isArray(indices) || !Array.isArray(deckList)) return []
           const pairIds = [...new Set(indices.map((idx) => deckList[idx]?.pairId).filter((x) => x !== undefined))]
-          return pairIds.map((pairId) => deckList.find((c) => c.pairId === pairId && c.type === 'picture')).filter(Boolean)
+          return pairIds.map((pairId) => {
+            const group = deckList.filter((c) => c.pairId === pairId)
+            if (group.some((c) => c.category === 'math_fractions')) {
+              const fr = group.find((c) => c.cardRole === 'fraction' && c.text)
+              const dec = group.find((c) => c.cardRole === 'decimal' && c.text)
+              const pick = fr || dec || group.find((c) => c.type === 'picture' && c.text)
+              return pick || group[0]
+            }
+            return deckList.find((c) => c.pairId === pairId && c.type === 'picture')
+          }).filter(Boolean)
         }
         return (
         <>
@@ -884,17 +1434,46 @@ function App() {
             <p className="players-turn-line">
               {isMyTurn ? `תור: ${turnPlayerName} (תורך)` : `תור: ${turnPlayerName}`}
             </p>
+            {isMathFractionHub && Number(room?.matchSize) === 3 && (
+              <p className="math-match-hint">שלב 4: <strong>הרם 3 קלפים</strong> — ציור, עשרוני ושבר לאותה כמות.</p>
+            )}
+            {isMathFractionHub && Number(room?.matchSize) === 2 && gameLevel === 1 && (
+              <p className="math-match-hint math-match-hint--subtle">שלב 1: התאימו <strong>שבר</strong> ל<strong>ציור</strong> (על קלף הציור אין טקסט).</p>
+            )}
+            {isMathFractionHub && Number(room?.matchSize) === 2 && gameLevel === 2 && (
+              <p className="math-match-hint math-match-hint--subtle">שלב 2: התאימו <strong>מספר עשרוני</strong> ל<strong>שבר</strong> (מכנה שניתן להרחיב ל־10/100…).</p>
+            )}
+            {isMathFractionHub && Number(room?.matchSize) === 2 && gameLevel === 3 && (
+              <p className="math-match-hint math-match-hint--subtle">שלב 3: בחפיסה יש גם זוגות שבר↔ציור וגם עשרוני↔שבר — כל כמות מופיעה פעם אחת.</p>
+            )}
           </div>
           <div className="game-over-bar game-actions-bar">
-            <button type="button" onClick={handleShowStory}>סיפור מהמשחק</button>
-            <button type="button" onClick={handleShowPyramidStory}>סיפור פירמידה מהמשחק</button>
+            {isMathFractionHub ? (
+              <button type="button" onClick={handleShowSolutions}>פתרונות מלאים (כל הזוגות)</button>
+            ) : (
+              <>
+                <button type="button" onClick={handleShowStory}>סיפור מהמשחק</button>
+                <button type="button" onClick={handleShowPyramidStory}>סיפור פירמידה מהמשחק</button>
+              </>
+            )}
             {room.players?.[0]?.id === socket?.id && (
               <span className="level-choose-wrap">
                 <button type="button" onClick={handleReplay}>משחק חדש</button>
-                <button type="button" className={gameLevel === 1 ? 'active' : ''} onClick={() => handleStartLevel(1)}>שלב 1 (מילה אחת)</button>
-                <button type="button" className={gameLevel === 2 ? 'active' : ''} onClick={() => handleStartLevel(2)}>שלב 2 (שתי מילים)</button>
-                <button type="button" className={gameLevel === 3 ? 'active' : ''} onClick={() => handleStartLevel(3)}>שלב 3 (3 מילים)</button>
-                <button type="button" className={gameLevel === 4 ? 'active' : ''} onClick={() => handleStartLevel(4)}>שלב 4 (משפט שלם)</button>
+                {isMathFractionHub ? (
+                  <>
+                    <button type="button" className={gameLevel === 1 ? 'active' : ''} onClick={() => handleStartLevel(1)}>שלב 1</button>
+                    <button type="button" className={gameLevel === 2 ? 'active' : ''} onClick={() => handleStartLevel(2)}>שלב 2</button>
+                    <button type="button" className={gameLevel === 3 ? 'active' : ''} onClick={() => handleStartLevel(3)}>שלב 3</button>
+                    <button type="button" className={gameLevel === 4 ? 'active' : ''} onClick={() => handleStartLevel(4)}>שלב 4 (הרם 3)</button>
+                  </>
+                ) : (
+                  <>
+                    <button type="button" className={gameLevel === 1 ? 'active' : ''} onClick={() => handleStartLevel(1)}>שלב 1 (מילה אחת)</button>
+                    <button type="button" className={gameLevel === 2 ? 'active' : ''} onClick={() => handleStartLevel(2)}>שלב 2 (שתי מילים)</button>
+                    <button type="button" className={gameLevel === 3 ? 'active' : ''} onClick={() => handleStartLevel(3)}>שלב 3 (3 מילים)</button>
+                    <button type="button" className={gameLevel === 4 ? 'active' : ''} onClick={() => handleStartLevel(4)}>שלב 4 (משפט שלם)</button>
+                  </>
+                )}
               </span>
             )}
           </div>
@@ -912,7 +1491,7 @@ function App() {
                     <div className="score-card-pairs">
                       {pairCards.map((card, idx) => (
                         <div key={idx} className="score-mini-pair">
-                          <span className="score-mini-word">{card.text || ''}</span>
+                          <span className={`score-mini-word${card.category === 'math_fractions' ? ' score-mini-math-fraction' : ''}`}>{card.text || ''}</span>
                           {card.emoji && (
                             <img src={getTwemojiUrl(card.emoji)} alt="" className="score-mini-img" draggable={false} onError={(e) => { e.target.style.display = 'none'; const n = e.target.nextElementSibling; if (n) n.style.display = 'flex'; }} />
                           )}
@@ -957,7 +1536,7 @@ function App() {
                     <div className="score-card-pairs">
                       {pairCards.map((card, idx) => (
                         <div key={idx} className="score-mini-pair">
-                          <span className="score-mini-word">{card.text || ''}</span>
+                          <span className={`score-mini-word${card.category === 'math_fractions' ? ' score-mini-math-fraction' : ''}`}>{card.text || ''}</span>
                           {card.emoji && (
                             <img src={getTwemojiUrl(card.emoji)} alt="" className="score-mini-img" draggable={false} onError={(e) => { e.target.style.display = 'none'; const n = e.target.nextElementSibling; if (n) n.style.display = 'flex'; }} />
                           )}
@@ -984,7 +1563,61 @@ function App() {
         </div>
       )}
 
-      {screen === 'story' && deck.length > 0 && (() => {
+      {screen === 'solutions' && Array.isArray(deck) && deck.length > 0 && (
+        <div className="story-screen solutions-screen">
+          <h2>פתרונות מלאים – כל זוגות השאלה והתשובה</h2>
+          <p className="story-desc">לכל זוג: נושא, שאלה, תשובה והסבר (הדרך).</p>
+          <div className="solutions-list">
+            {collectSolutionsFromDeck(deck).map((row) => (
+              <div key={row.pairId} className="solution-block">
+                {row.mathTopic && (
+                  <div className="solution-topic">{mathTopicLabel(row.mathTopic)}</div>
+                )}
+                {row.visual && (
+                  <div className="solution-art-wrap" aria-hidden>
+                    <FractionQuestionArt visual={row.visual} />
+                  </div>
+                )}
+                <p className="solution-q"><strong>שאלה:</strong> {row.question ?? '—'}</p>
+                <p className="solution-a"><strong>תשובה:</strong> {row.answer ?? '—'}</p>
+                <p className="solution-exp"><strong>הדרך:</strong> {row.explanation ?? '—'}</p>
+              </div>
+            ))}
+          </div>
+          <div className="story-actions">
+            <button type="button" onClick={() => setScreen('game')}>חזרה למשחק</button>
+            {room?.players?.[0]?.id === socket?.id && (
+              <>
+                <button type="button" onClick={handleReplay}>משחק חדש</button>
+                <button type="button" className={gameLevel === 1 ? 'active' : ''} onClick={() => handleStartLevel(1)}>
+                  {isMathFractionHub ? 'שלב 1' : 'שלב 1 (מילה אחת)'}
+                </button>
+                <button type="button" className={gameLevel === 2 ? 'active' : ''} onClick={() => handleStartLevel(2)}>
+                  {isMathFractionHub ? 'שלב 2' : 'שלב 2 (שתי מילים)'}
+                </button>
+                <button type="button" className={gameLevel === 3 ? 'active' : ''} onClick={() => handleStartLevel(3)}>
+                  {isMathFractionHub ? 'שלב 3' : 'שלב 3 (3 מילים)'}
+                </button>
+                <button type="button" className={gameLevel === 4 ? 'active' : ''} onClick={() => handleStartLevel(4)}>
+                  {isMathFractionHub ? 'שלב 4 (הרם 3)' : 'שלב 4 (משפט שלם)'}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {screen === 'story' && deck.length > 0 && isMathFractionHub && (
+        <div className="story-screen">
+          <h2>סיפור</h2>
+          <p className="story-desc">במשחק שברים אין מסך סיפור. השתמשו ב«פתרונות מלאים» מהמשחק.</p>
+          <div className="story-actions">
+            <button type="button" onClick={() => setScreen('game')}>חזרה למשחק</button>
+          </div>
+        </div>
+      )}
+
+      {screen === 'story' && deck.length > 0 && !isMathFractionHub && (() => {
         const story = currentGameStory ?? currentGameStoryRef.current
         if (storyMode === 'pyramid' && story && Array.isArray(story.items) && story.items.length > 0) {
           return (
