@@ -1,0 +1,92 @@
+============================================================
+PROJECTS: NDFA-MEMORY-MATCH-GAME  and  MATH-ENGLISH-GAMES
+============================================================
+
+  One backend + both under one root? See:
+  ...\yasmin\ndfa-games-root\README.txt and docs.txt
+  (move backend + both frontends into ndfa-games-root)
+
+------------------------------------------------------------
+1. NDFA-MEMORY-MATCH-GAME
+------------------------------------------------------------
+
+What it is:
+  Memory match game (1-3 players) with NDFA categories.
+  Backend: Flask + PostgreSQL (init via db_create, SQLAlchemy).
+  Backend entry point: app.py (run with: python app.py).
+  Also Flask + Socket.IO for real-time game.
+  Frontend: React + Vite.
+  DB: PostgreSQL (players, connection_logs, rooms, tasks).
+  Data grouped by age_group + subject.
+  Admin page: load/clean DB by subject+age.
+
+How to run (local):
+
+  A. Backend
+     - Open a terminal.
+     - cd backend
+     - (First time) Create .env with DATABASE_URL if needed:
+         postgresql://postgres:postgres@localhost:5432/ndfa_memory_game
+     - Run setup (install + DB init, optional seed):
+         setup.bat          (Windows)
+         bash setup.sh      (Mac/Linux or Git Bash)
+     - Start the app:
+         python app.py
+     - Backend runs at http://localhost:5000
+
+  B. Frontend
+     - Open another terminal.
+     - From project root (NDFA-MEMORY-MATCH-GAME):
+         npm install
+         npm start
+     - Frontend at http://localhost:5173 (opens in browser)
+
+  C. Admin page
+     - With backend running, open in browser:
+       http://localhost:5000/admin
+     - Set ADMIN_SECRET in backend/.env
+     - Enter same value in "Admin key" field on the page.
+
+Production (Render):
+  - Root dir: backend.
+  - Build: bash setup.sh
+  - Start: gunicorn -w 1 --threads 100 -b 0.0.0.0:$PORT app:app
+  - In Render dashboard set: DATABASE_URL and optionally
+    ADMIN_SECRET, SEED_TASKS=1
+
+------------------------------------------------------------
+2. MATH-ENGLISH-GAMES
+------------------------------------------------------------
+
+What it is:
+  React + Vite frontend for math/english games (grade 5-6).
+  Uses NDFA's backend (same API, same DB). No its own app.py.
+  Tasks by age_group + subject (e.g. grade_5_6, math, english).
+
+How to run (local):
+
+  A. Backend
+     - Use NDFA backend: run NDFA's backend (see project 1).
+     - Set MATH-ENGLISH-GAMES frontend to point at that API
+       (e.g. VITE_BACKEND_URL or same host).
+
+  B. Frontend
+     - From MATH-ENGLISH-GAMES folder:
+         npm install
+         npm start
+     - App at http://localhost:5173 (opens in browser)
+
+------------------------------------------------------------
+Root folders
+------------------------------------------------------------
+
+  NDFA-MEMORY-MATCH-GAME root:
+    ...\yasmin\NDFA-MEMORY-MATCH-GAME
+  MATH-ENGLISH-GAMES root:
+    ...\yasmin\MATH-ENGLISH-GAMES
+
+  "Root" = main project folder (has backend and/or package.json).
+  Run backend commands from the backend folder.
+  Run frontend commands from the project root.
+
+============================================================
