@@ -1,0 +1,14 @@
+{
+  "name": "ndfa-games-root",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Build main menu (READING-MEMORY-GAME) + external Vite games into one folder for Netlify static hosting. Backend is separate (Python/Postgres).",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-netlify-all.mjs",
+    "build:netlify": "node scripts/build-netlify-all.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

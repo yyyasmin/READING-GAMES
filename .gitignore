@@ -1,6 +1,7 @@
 # Node / React
 node_modules/
 dist/
+publish/
 build/
 .cache/
 .eslintcache

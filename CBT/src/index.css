@@ -251,175 +251,819 @@ body {
   transition: width 0.2s linear;
 }
 
-.cbt-sky {
-  position: relative;
-  min-height: 280px;
-  margin-bottom: 1rem;
-  border-radius: 12px;
-  background:
-    radial-gradient(ellipse 120% 80% at 50% -20%, rgba(99, 102, 241, 0.25), transparent 55%),
-    linear-gradient(180deg, rgba(15, 23, 42, 0.4) 0%, rgba(30, 58, 138, 0.15) 100%);
-  overflow: hidden;
-}
-
-.cbt-sky-stars {
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(1px 1px at 10% 20%, rgba(255, 255, 255, 0.5), transparent),
-    radial-gradient(1px 1px at 90% 35%, rgba(255, 255, 255, 0.35), transparent),
-    radial-gradient(1px 1px at 30% 70%, rgba(255, 255, 255, 0.45), transparent),
-    radial-gradient(1px 1px at 70% 15%, rgba(255, 255, 255, 0.3), transparent),
-    radial-gradient(1px 1px at 50% 50%, rgba(255, 255, 255, 0.25), transparent);
-  animation: cbt-stars-twinkle 4s ease-in-out infinite;
-  pointer-events: none;
-}
-
-@keyframes cbt-stars-twinkle {
-  0%, 100% { opacity: 0.65; }
-  50% { opacity: 1; }
-}
-
-.cbt-missile {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.15rem;
-}
-
-.cbt-missile-visual {
-  position: relative;
-  width: min(100px, 22vw);
-  height: min(200px, 42vw);
-  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--missile-accent, #c62828) 55%, transparent));
-}
-
-.cbt-rocket-svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-  overflow: visible;
-}
-
-.cbt-rocket-group {
-  transform-origin: 36px 80px;
-  animation: cbt-rocket-enter 1.35s cubic-bezier(0.22, 0.8, 0.36, 1) forwards, cbt-rocket-hover 2.4s ease-in-out 1.35s infinite;
-}
-
-.cbt-rocket-flame-outer {
-  transform-origin: 36px 130px;
-  animation: cbt-flame-flicker 0.12s ease-in-out infinite alternate;
-}
-
-.cbt-rocket-flame-inner {
-  transform-origin: 36px 125px;
-  animation: cbt-flame-flicker 0.09s ease-in-out infinite alternate-reverse;
-}
-
-.cbt-rocket-trail {
-  position: absolute;
-  left: 50%;
-  bottom: -6px;
-  width: 6px;
-  height: 40px;
-  margin-left: -3px;
-  background: linear-gradient(180deg, rgba(251, 191, 36, 0.7), transparent);
-  border-radius: 50%;
-  filter: blur(3px);
-  animation: cbt-trail-pulse 0.2s ease-in-out infinite alternate;
-  pointer-events: none;
-}
-
-@keyframes cbt-rocket-enter {
-  0% {
-    transform: translateY(-120%) translateX(-6px) rotate(-6deg);
-    opacity: 0.15;
-  }
-  55% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(0) translateX(0) rotate(0deg);
-    opacity: 1;
-  }
-}
-
-@keyframes cbt-rocket-hover {
-  0%, 100% { transform: translateY(0) translateX(0) rotate(-0.8deg); }
-  50% { transform: translateY(3px) translateX(2px) rotate(0.8deg); }
-}
-
-@keyframes cbt-flame-flicker {
-  from { transform: scaleY(1) scaleX(1); }
-  to { transform: scaleY(1.12) scaleX(0.92); }
-}
-
-@keyframes cbt-trail-pulse {
-  from { opacity: 0.45; transform: scaleY(0.85); }
-  to { opacity: 0.95; transform: scaleY(1.15); }
-}
-
-.cbt-missile-fuselage {
-  max-width: 100%;
-  width: min(100%, 26rem);
-  border: 2px solid var(--missile-color, #c62828);
-  border-radius: 12px 12px 20px 20px;
-  padding: 0.65rem 0.85rem 0.55rem;
-  margin-top: 0.15rem;
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
-  box-shadow:
-    0 0 20px color-mix(in srgb, var(--missile-color, #c62828) 35%, transparent),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+.cbt-play-goal {
+  margin: 0 0 0.75rem;
+  padding: 0 0.35rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #cbd5e1;
   text-align: center;
 }
 
-.cbt-missile-badge {
+.cbt-play-goal strong {
+  color: #fca5a5;
+}
+
+/* טיל אויב — שכבה מעל הווידאו, חלק מאותה סצנה כמו המשגר */
+.cbt-scene-enemy-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+/* זום החוצה; מקור סקייל גבוה + הזזה קלה למעלה — מנצלים את חלקו העליון של המסגרת */
+.cbt-scene-enemy-stage {
+  position: absolute;
+  inset: 0;
+  /* אורך מחזור טיל אויב — לעדכן גם ENEMY_APPROACH_CYCLE_SEC ב-cbtBattleSfx.js */
+  --cbt-enemy-flight-duration: 28s;
+  width: 130%;
+  height: 130%;
+  left: -15%;
+  top: -20%;
+  transform: translate(0, max(-8vmin, -6vh)) scale(0.4);
+  transform-origin: 50% 32%;
+  pointer-events: none;
+}
+
+.cbt-scene-enemy-sky {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 82%;
+  z-index: 0;
+  direction: ltr;
+  background: linear-gradient(
+    180deg,
+    rgba(8, 15, 35, 0.78) 0%,
+    rgba(30, 58, 95, 0.42) 22%,
+    rgba(127, 29, 29, 0.14) 42%,
+    rgba(15, 23, 42, 0.06) 72%,
+    transparent 100%
+  );
+}
+
+.cbt-scene-enemy-tag {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #fecaca;
+  text-shadow:
+    0 0 12px rgba(0, 0, 0, 0.95),
+    0 0 18px rgba(220, 38, 38, 0.85),
+    0 1px 2px #000;
+  z-index: 4;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.cbt-scene-enemy-rocket {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(52px, 13vw);
+  height: min(120px, 30vw);
+  transform-origin: center center;
+  z-index: 2;
+  animation: cbt-scene-enemy-approach var(--cbt-enemy-flight-duration, 28s) cubic-bezier(0.12, 0.72, 0.18, 1) infinite;
+  filter:
+    drop-shadow(0 0 5px rgba(255, 255, 255, 0.75))
+    drop-shadow(0 0 12px rgba(186, 230, 253, 0.55))
+    drop-shadow(0 0 14px rgba(220, 38, 38, 0.85))
+    drop-shadow(0 0 8px rgba(251, 146, 60, 0.55));
+}
+
+.cbt-enemy-meteor-sparkle {
+  position: absolute;
+  left: 50%;
+  top: 5%;
+  width: min(22px, 5.5vw);
+  height: min(22px, 5.5vw);
+  margin: calc(min(22px, 5.5vw) / -2) 0 0 calc(min(22px, 5.5vw) / -2);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(254, 252, 232, 0.95) 22%,
+    rgba(254, 249, 195, 0.88) 38%,
+    rgba(125, 211, 252, 0.45) 58%,
+    rgba(96, 165, 250, 0.2) 72%,
+    transparent 82%
+  );
+  box-shadow:
+    0 0 min(14px, 3.5vw) rgba(255, 255, 255, 0.95),
+    0 0 min(28px, 7vw) rgba(186, 230, 253, 0.55),
+    0 0 min(40px, 10vw) rgba(251, 191, 36, 0.35);
+  z-index: 2;
+  pointer-events: none;
+  animation: cbt-meteor-sparkle-twinkle 1.6s ease-in-out infinite alternate;
+}
+
+/* שובל אש + עשן מאחורי הטיל (מסתובב עם האנימציה) — כמו זנב כוכב נופל */
+.cbt-scene-enemy-rocket::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 72%;
+  width: min(30px, 8vw);
+  height: min(120px, 32vw);
+  margin-left: calc(min(30px, 8vw) / -2);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(255, 251, 235, 0.96) 6%,
+    rgba(254, 249, 195, 0.9) 14%,
+    rgba(186, 230, 253, 0.78) 32%,
+    rgba(125, 211, 252, 0.5) 55%,
+    rgba(96, 165, 250, 0.28) 72%,
+    rgba(59, 130, 246, 0.08) 88%,
+    transparent 100%
+  );
+  border-radius: 42% 42% 55% 55%;
+  filter: blur(2px) brightness(1.08);
+  pointer-events: none;
+  z-index: 0;
+  transform-origin: 50% 0;
+  animation:
+    cbt-enemy-exhaust-flicker 0.14s ease-in-out infinite alternate,
+    cbt-enemy-plume-by-distance var(--cbt-enemy-flight-duration, 28s) cubic-bezier(0.12, 0.72, 0.18, 1) infinite;
+}
+
+.cbt-scene-enemy-rocket::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 68%;
+  width: min(40px, 11vw);
+  height: min(100px, 26vw);
+  margin-left: calc(min(40px, 11vw) / -2);
+  background: radial-gradient(
+    ellipse 55% 45% at 50% 8%,
+    rgba(165, 180, 252, 0.35),
+    rgba(99, 102, 241, 0.12) 42%,
+    transparent 72%
+  );
+  filter: blur(5px);
+  pointer-events: none;
+  z-index: 0;
+  animation:
+    cbt-enemy-exhaust-smoke 0.55s ease-in-out infinite alternate,
+    cbt-enemy-smoke-by-distance var(--cbt-enemy-flight-duration, 28s) cubic-bezier(0.12, 0.72, 0.18, 1) infinite;
+}
+
+.cbt-scene-enemy-rocket--threat {
+  animation: cbt-scene-enemy-threat 0.85s cubic-bezier(0.18, 0.92, 0.25, 1) forwards;
+}
+
+.cbt-scene-enemy-svg {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.cbt-enemy-meteor-streak-svg {
+  opacity: 0.88;
+  animation: cbt-meteor-streak-pulse 2.4s ease-in-out infinite alternate;
+}
+
+@keyframes cbt-meteor-sparkle-twinkle {
+  from {
+    opacity: 0.55;
+    transform: scale(0.88);
+    filter: blur(0.4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.12);
+    filter: blur(1px);
+  }
+}
+
+@keyframes cbt-meteor-streak-pulse {
+  from {
+    opacity: 0.72;
+  }
+  to {
+    opacity: 0.95;
+  }
+}
+
+@keyframes cbt-enemy-exhaust-flicker {
+  from {
+    transform: scaleY(1) scaleX(1);
+  }
+  to {
+    transform: scaleY(1.12) scaleX(1.06);
+  }
+}
+
+@keyframes cbt-enemy-exhaust-smoke {
+  from {
+    transform: translateY(0) scaleX(1);
+  }
+  to {
+    transform: translateY(3px) scaleX(1.08);
+  }
+}
+
+/* שובל כמעט בלתי נראה מרחוק, בולט כשמתקרבים */
+@keyframes cbt-enemy-plume-by-distance {
+  0%,
+  30% {
+    opacity: 0.1;
+    filter: blur(3px) brightness(0.9);
+  }
+  55% {
+    opacity: 0.4;
+    filter: blur(2.2px) brightness(1.02);
+  }
+  100% {
+    opacity: 0.78;
+    filter: blur(2px) brightness(1.1);
+  }
+}
+
+@keyframes cbt-enemy-smoke-by-distance {
+  0%,
+  35% {
+    opacity: 0.08;
+  }
+  70% {
+    opacity: 0.35;
+  }
+  100% {
+    opacity: 0.55;
+  }
+}
+
+@keyframes cbt-scene-enemy-approach {
+  /* שמאל־למעלה (מעט מתחת לפינה) → קשת גדולה למעלה על פני המסך → ירידה לפינה ימנית־תחתונה; דעיכה רק שם ואז איפוס בלתי נראה. */
+  0%,
+  100% {
+    transform: translate(-50%, -50%) translate3d(-58vmin, -20vmin, 0) scale(0.026) rotate(118deg);
+    opacity: 0.48;
+    filter:
+      blur(3px)
+      drop-shadow(0 0 4px rgba(255, 255, 255, 0.5))
+      drop-shadow(0 0 14px rgba(186, 230, 253, 0.38))
+      drop-shadow(0 0 6px rgba(220, 38, 38, 0.28))
+      drop-shadow(0 0 4px rgba(251, 191, 36, 0.22));
+  }
+  9% {
+    transform: translate(-50%, -50%) translate3d(-46vmin, -36vmin, 0) scale(0.045) rotate(108deg);
+    opacity: 0.56;
+    filter:
+      blur(2.4px)
+      drop-shadow(0 0 5px rgba(255, 255, 255, 0.56))
+      drop-shadow(0 0 16px rgba(186, 230, 253, 0.41))
+      drop-shadow(0 0 8px rgba(220, 38, 38, 0.36))
+      drop-shadow(0 0 5px rgba(251, 191, 36, 0.26));
+  }
+  20% {
+    transform: translate(-50%, -50%) translate3d(-24vmin, -54vmin, 0) scale(0.09) rotate(96deg);
+    opacity: 0.68;
+    filter:
+      blur(1.85px)
+      drop-shadow(0 0 6px rgba(255, 255, 255, 0.62))
+      drop-shadow(0 0 18px rgba(147, 197, 253, 0.46))
+      drop-shadow(0 0 10px rgba(220, 38, 38, 0.52))
+      drop-shadow(0 0 6px rgba(251, 146, 60, 0.4));
+  }
+  32% {
+    transform: translate(-50%, -50%) translate3d(4vmin, -66vmin, 0) scale(0.17) rotate(88deg);
+    opacity: 0.78;
+    filter:
+      blur(1.2px)
+      drop-shadow(0 0 6px rgba(255, 255, 255, 0.68))
+      drop-shadow(0 0 20px rgba(125, 211, 252, 0.5))
+      drop-shadow(0 0 12px rgba(220, 38, 38, 0.62))
+      drop-shadow(0 0 7px rgba(251, 146, 60, 0.48));
+  }
+  44% {
+    transform: translate(-50%, -50%) translate3d(34vmin, -70vmin, 0) scale(0.28) rotate(84deg);
+    opacity: 0.86;
+    filter:
+      blur(0.85px)
+      drop-shadow(0 0 7px rgba(255, 255, 255, 0.74))
+      drop-shadow(0 0 21px rgba(125, 211, 252, 0.52))
+      drop-shadow(0 0 13px rgba(220, 38, 38, 0.7))
+      drop-shadow(0 0 8px rgba(251, 146, 60, 0.54));
+  }
+  54% {
+    transform: translate(-50%, -50%) translate3d(48vmin, -62vmin, 0) scale(0.4) rotate(86deg);
+    opacity: 0.9;
+    filter:
+      blur(0.6px)
+      drop-shadow(0 0 7px rgba(255, 255, 255, 0.76))
+      drop-shadow(0 0 22px rgba(147, 197, 253, 0.5))
+      drop-shadow(0 0 14px rgba(220, 38, 38, 0.74))
+      drop-shadow(0 0 8px rgba(251, 146, 60, 0.58));
+  }
+  64% {
+    transform: translate(-50%, -50%) translate3d(54vmin, -34vmin, 0) scale(0.54) rotate(94deg);
+    opacity: 0.94;
+    filter:
+      blur(0.38px)
+      drop-shadow(0 0 8px rgba(255, 255, 255, 0.79))
+      drop-shadow(0 0 22px rgba(186, 230, 253, 0.48))
+      drop-shadow(0 0 14px rgba(220, 38, 38, 0.8))
+      drop-shadow(0 0 9px rgba(251, 146, 60, 0.62));
+  }
+  74% {
+    transform: translate(-50%, -50%) translate3d(56vmin, -4vmin, 0) scale(0.7) rotate(98deg);
+    opacity: 0.97;
+    filter:
+      blur(0.18px)
+      drop-shadow(0 0 8px rgba(255, 255, 255, 0.83))
+      drop-shadow(0 0 23px rgba(186, 230, 253, 0.45))
+      drop-shadow(0 0 15px rgba(220, 38, 38, 0.86))
+      drop-shadow(0 0 9px rgba(251, 146, 60, 0.68));
+  }
+  83% {
+    transform: translate(-50%, -50%) translate3d(57vmin, 22vmin, 0) scale(0.86) rotate(102deg);
+    opacity: 1;
+    filter:
+      blur(0.06px)
+      drop-shadow(0 0 8px rgba(255, 255, 255, 0.86))
+      drop-shadow(0 0 24px rgba(186, 230, 253, 0.43))
+      drop-shadow(0 0 16px rgba(220, 38, 38, 0.92))
+      drop-shadow(0 0 10px rgba(251, 146, 60, 0.74));
+  }
+  90% {
+    transform: translate(-50%, -50%) translate3d(58vmin, 40vmin, 0) scale(1) rotate(106deg);
+    opacity: 1;
+    filter:
+      blur(0)
+      drop-shadow(0 0 8px rgba(255, 255, 255, 0.88))
+      drop-shadow(0 0 25px rgba(186, 230, 253, 0.41))
+      drop-shadow(0 0 16px rgba(220, 38, 38, 0.96))
+      drop-shadow(0 0 10px rgba(251, 146, 60, 0.78));
+  }
+  93% {
+    transform: translate(-50%, -50%) translate3d(59vmin, 48vmin, 0) scale(1.06) rotate(108deg);
+    opacity: 1;
+    filter:
+      blur(0)
+      drop-shadow(0 0 8px rgba(255, 255, 255, 0.88))
+      drop-shadow(0 0 26px rgba(186, 230, 253, 0.4))
+      drop-shadow(0 0 17px rgba(220, 38, 38, 0.98))
+      drop-shadow(0 0 10px rgba(251, 146, 60, 0.78));
+  }
+  94.5% {
+    transform: translate(-50%, -50%) translate3d(60vmin, 52vmin, 0) scale(1.08) rotate(110deg);
+    opacity: 0;
+    filter:
+      blur(0)
+      drop-shadow(0 0 8px rgba(255, 255, 255, 0.88))
+      drop-shadow(0 0 26px rgba(186, 230, 253, 0.4))
+      drop-shadow(0 0 17px rgba(220, 38, 38, 0.98))
+      drop-shadow(0 0 10px rgba(251, 146, 60, 0.78));
+  }
+  95% {
+    transform: translate(-50%, -50%) translate3d(-58vmin, -20vmin, 0) scale(0.026) rotate(118deg);
+    opacity: 0;
+    filter:
+      blur(3px)
+      drop-shadow(0 0 4px rgba(255, 255, 255, 0.5))
+      drop-shadow(0 0 14px rgba(186, 230, 253, 0.38))
+      drop-shadow(0 0 6px rgba(220, 38, 38, 0.28))
+      drop-shadow(0 0 4px rgba(251, 191, 36, 0.22));
+  }
+  96% {
+    transform: translate(-50%, -50%) translate3d(-58vmin, -20vmin, 0) scale(0.026) rotate(118deg);
+    opacity: 0;
+    filter:
+      blur(3px)
+      drop-shadow(0 0 4px rgba(255, 255, 255, 0.5))
+      drop-shadow(0 0 14px rgba(186, 230, 253, 0.38))
+      drop-shadow(0 0 6px rgba(220, 38, 38, 0.28))
+      drop-shadow(0 0 4px rgba(251, 191, 36, 0.22));
+  }
+  97.5% {
+    transform: translate(-50%, -50%) translate3d(-58vmin, -20vmin, 0) scale(0.026) rotate(118deg);
+    opacity: 0.42;
+    filter:
+      blur(3px)
+      drop-shadow(0 0 4px rgba(255, 255, 255, 0.5))
+      drop-shadow(0 0 14px rgba(186, 230, 253, 0.38))
+      drop-shadow(0 0 6px rgba(220, 38, 38, 0.28))
+      drop-shadow(0 0 4px rgba(251, 191, 36, 0.22));
+  }
+}
+
+/* חציית שמיים שמאל ↔ ימין (מצב ללא וידאו) — מתואם ל-alternate */
+@keyframes cbt-enemy-cross-sky {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) translate3d(-56vw, -10vmin, 0) scale(0.48) rotate(95deg);
+    opacity: 0.92;
+    filter:
+      blur(0.45px)
+      drop-shadow(0 0 6px rgba(255, 255, 255, 0.72))
+      drop-shadow(0 0 16px rgba(186, 230, 253, 0.48))
+      drop-shadow(0 0 10px rgba(220, 38, 38, 0.72))
+      drop-shadow(0 0 6px rgba(251, 146, 60, 0.5));
+  }
+  50% {
+    transform: translate(-50%, -50%) translate3d(52vw, -18vmin, 0) scale(0.82) rotate(91deg);
+    opacity: 1;
+    filter:
+      blur(0.12px)
+      drop-shadow(0 0 8px rgba(255, 255, 255, 0.84))
+      drop-shadow(0 0 22px rgba(125, 211, 252, 0.42))
+      drop-shadow(0 0 14px rgba(220, 38, 38, 0.88))
+      drop-shadow(0 0 8px rgba(251, 146, 60, 0.62));
+  }
+}
+
+@keyframes cbt-scene-enemy-threat {
+  0% {
+    transform: translate(-50%, -50%) translate3d(-54vmin, -20vmin, 0) scale(0.08) rotate(118deg);
+    filter:
+      blur(1.8px)
+      drop-shadow(0 0 5px rgba(255, 255, 255, 0.55))
+      drop-shadow(0 0 14px rgba(186, 230, 253, 0.4))
+      drop-shadow(0 0 7px rgba(220, 38, 38, 0.45));
+  }
+  38% {
+    transform: translate(-50%, -50%) translate3d(36vmin, -64vmin, 0) scale(0.48) rotate(86deg);
+    filter:
+      blur(0.35px)
+      drop-shadow(0 0 7px rgba(255, 255, 255, 0.72))
+      drop-shadow(0 0 18px rgba(147, 197, 253, 0.5))
+      drop-shadow(0 0 14px rgba(248, 113, 113, 0.85));
+  }
+  70% {
+    transform: translate(-50%, -50%) translate3d(54vmin, -12vmin, 0) scale(0.88) rotate(96deg);
+    filter:
+      blur(0)
+      drop-shadow(0 0 8px rgba(255, 255, 255, 0.8))
+      drop-shadow(0 0 22px rgba(125, 211, 252, 0.45))
+      drop-shadow(0 0 20px rgba(248, 113, 113, 0.96));
+  }
+  100% {
+    transform: translate(-50%, -50%) translate3d(58vmin, 50vmin, 0) scale(1.12) rotate(108deg);
+    filter:
+      blur(0)
+      drop-shadow(0 0 8px rgba(255, 255, 255, 0.75))
+      drop-shadow(0 0 18px rgba(186, 230, 253, 0.35))
+      drop-shadow(0 0 14px rgba(220, 38, 38, 0.72));
+  }
+}
+
+.cbt-hostile-thought-strip {
+  margin: 0 0 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  background: rgba(30, 41, 59, 0.9);
+}
+
+.cbt-hostile-thought-badge {
   display: block;
   font-size: 0.72rem;
   font-weight: 700;
   color: #fca5a5;
-  letter-spacing: 0.02em;
   margin-bottom: 0.35rem;
 }
 
-.cbt-missile-body-text {
-  margin: 0 0 0.4rem;
-  font-size: 0.92rem;
-  line-height: 1.5;
+.cbt-hostile-thought-text {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
   color: #f1f5f9;
 }
 
-.cbt-dome-hint {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-  text-align: center;
+.cbt-hostile-thought-strip--minimal {
+  margin: 0 0 0.35rem;
+  padding: 0.35rem 0.45rem;
+}
+
+.cbt-custom-launcher--minimal {
+  margin-top: 0.45rem;
+  padding: 0.45rem 0.55rem;
+}
+
+.cbt-custom-launcher--minimal .cbt-custom-input {
+  margin-bottom: 0.35rem;
+}
+
+.cbt-launcher-aim-hint {
+  margin: -0.35rem 0 0.85rem;
+  padding: 0 0.35rem;
   font-size: 0.82rem;
+  line-height: 1.5;
   color: #94a3b8;
-  margin-top: 0.5rem;
+  text-align: center;
 }
 
-.cbt-dome-ico {
-  display: inline-flex;
-  vertical-align: middle;
+.cbt-launcher-aim-hint strong {
+  color: #fca5a5;
 }
 
-.cbt-dome-svg {
-  width: 2.6rem;
-  height: auto;
-  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.5));
-  animation: cbt-dome-pulse 2s ease-in-out infinite;
+/* פגיעה + התפוצצות בתוך מסגרת הווידאו (משלים מה שהקליפ לא מראה) */
+.cbt-in-frame-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+  overflow: visible;
+  border-radius: inherit;
 }
 
-@keyframes cbt-dome-pulse {
-  0%, 100% { opacity: 0.85; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.05); }
+.cbt-in-frame-hit-meet {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  width: min(140px, 38vw);
+  height: min(140px, 38vw);
+  margin: calc(min(140px, 38vw) / -2) 0 0 calc(min(140px, 38vw) / -2);
+}
+
+.cbt-in-frame-hit-flash {
+  position: absolute;
+  inset: -120%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(254, 249, 195, 0.45) 28%, transparent 62%);
+  animation: cbt-in-frame-flash 0.38s ease-out both;
+}
+
+.cbt-in-frame-hit-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 72%;
+  height: 72%;
+  margin: -36% 0 0 -36%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    #fff 0%,
+    #fde047 18%,
+    #f97316 42%,
+    #dc2626 68%,
+    transparent 82%
+  );
+  box-shadow: 0 0 40px rgba(250, 204, 21, 0.95);
+  animation: cbt-in-frame-core 0.95s cubic-bezier(0.2, 0.85, 0.35, 1) 0.12s both;
+}
+
+.cbt-in-frame-hit-shock {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  opacity: 0;
+  animation: cbt-in-frame-shock 0.85s ease-out 0.2s forwards;
+}
+
+.cbt-in-frame-hit-spark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(22vw, 90px);
+  height: 4px;
+  margin-left: calc(min(22vw, 90px) / -2);
+  border-radius: 2px;
+  transform-origin: center center;
+  background: linear-gradient(90deg, #fff, #fde047, #f97316, transparent);
+  box-shadow: 0 0 10px #fde047;
+  opacity: 0;
+  animation: cbt-in-frame-spark 0.75s ease-out 0.18s forwards;
+  animation-delay: calc(0.02s * var(--cbt-if-spark));
+}
+
+.cbt-in-frame-hit-smoke {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 100px;
+  height: 100px;
+  margin: -50px 0 0 -50px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(148, 163, 184, 0.55) 0%, transparent 72%);
+  opacity: 0;
+  animation: cbt-in-frame-smoke 1.1s ease-out 0.25s forwards;
+}
+
+.cbt-in-frame-hit-caption {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #fef08a;
+  text-shadow:
+    0 0 14px rgba(0, 0, 0, 0.95),
+    0 0 20px rgba(220, 38, 38, 0.65);
+  white-space: nowrap;
+  animation: cbt-in-frame-cap 0.4s ease-out 0.35s both;
+}
+
+@keyframes cbt-in-frame-flash {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes cbt-in-frame-core {
+  0% {
+    opacity: 0;
+    transform: scale(0.15);
+  }
+  25% {
+    opacity: 1;
+  }
+  55% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.35;
+  }
+}
+
+@keyframes cbt-in-frame-shock {
+  0% {
+    opacity: 0.95;
+    transform: scale(0.35);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(12);
+  }
+}
+
+@keyframes cbt-in-frame-spark {
+  0% {
+    opacity: 1;
+    transform: rotate(calc(var(--cbt-if-spark) * 25.7deg)) translateX(0) scaleX(0.35);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(calc(var(--cbt-if-spark) * 25.7deg)) translateX(min(36vw, 160px)) scaleX(1.15);
+  }
+}
+
+@keyframes cbt-in-frame-smoke {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.5);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.4);
+  }
+}
+
+@keyframes cbt-in-frame-cap {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* יירוט מוצלח: שני טילים נפגשים באמצע + פיצוץ */
+.cbt-collision-meet {
+  position: absolute;
+  left: 50%;
+  top: 34%;
+  width: min(300px, 88vw);
+  height: 150px;
+  margin-left: calc(min(300px, 88vw) / -2);
+  margin-top: -75px;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.cbt-collision-meet-label {
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  transform: translateX(-50%);
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #fde047;
+  text-shadow: 0 0 12px rgba(250, 204, 21, 0.75);
+  white-space: nowrap;
+  opacity: 0;
+  animation: cbt-collision-label-in 0.35s ease-out 0.42s forwards;
+}
+
+@keyframes cbt-collision-label-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.cbt-collision-rocket {
+  position: absolute;
+  width: 30px;
+  height: 86px;
+}
+
+.cbt-collision-rocket--enemy {
+  left: 6%;
+  top: 22%;
+  animation: cbt-collision-enemy-in 0.52s cubic-bezier(0.25, 0.85, 0.35, 1) forwards;
+}
+
+.cbt-collision-rocket--intercept {
+  right: 6%;
+  bottom: 12%;
+  animation: cbt-collision-intercept-in 0.52s cubic-bezier(0.25, 0.85, 0.35, 1) forwards;
+}
+
+.cbt-collision-rocket--enemy g {
+  transform-origin: 36px 100px;
+  transform: rotate(28deg);
+}
+
+.cbt-collision-rocket--intercept g {
+  transform-origin: 36px 100px;
+  transform: rotate(208deg);
+}
+
+@keyframes cbt-collision-enemy-in {
+  from {
+    transform: translate(-40px, 18px);
+    opacity: 1;
+  }
+  to {
+    transform: translate(92px, -8px);
+    opacity: 1;
+  }
+}
+
+@keyframes cbt-collision-intercept-in {
+  from {
+    transform: translate(48px, 52px);
+    opacity: 1;
+  }
+  to {
+    transform: translate(-72px, -38px);
+    opacity: 1;
+  }
+}
+
+.cbt-collision-x {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 56px;
+  height: 56px;
+  margin: -28px 0 0 -28px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0%, rgba(250, 204, 21, 0.45) 35%, rgba(249, 115, 22, 0.2) 60%, transparent 78%);
+  opacity: 0;
+  animation: cbt-collision-x-pop 0.4s ease-out 0.36s forwards;
+  box-shadow: 0 0 24px rgba(250, 204, 21, 0.9);
+}
+
+@keyframes cbt-collision-x-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.45);
+  }
 }
 
 /* שכבת יירוט מוצלח – מיירט עולה + פיצוץ */
@@ -633,10 +1277,1797 @@ body {
   color: #a5b4fc;
 }
 
-.cbt-choices {
+.cbt-launcher-selector {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.cbt-launcher-tube {
+  position: relative;
+  border: 2px solid rgba(148, 163, 184, 0.5);
+  border-radius: 16px;
+  padding: 0.7rem 1rem 0.8rem;
+  background:
+    linear-gradient(155deg, rgba(51, 65, 85, 0.9) 0%, rgba(30, 41, 59, 0.95) 55%, rgba(15, 23, 42, 0.95) 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(15, 23, 42, 0.7),
+    0 8px 18px rgba(2, 6, 23, 0.45);
+  overflow: hidden;
+}
+
+/* מסלול הטיל יוצא מגבולות התמונה — לא לחתוך בטיוב המשגר */
+.cbt-launcher-tube:has(.cbt-photo-wrap--enemy-sky-only) {
+  overflow: visible;
+}
+
+.cbt-launcher-photo-wrap {
+  position: relative;
+  height: 330px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  margin-bottom: 0.55rem;
+  background: linear-gradient(180deg, #d4d4d4 0%, #9ca3af 42%, #6b7280 100%);
+}
+
+/* זמני: ללא וידאו משגר — שמיים + טיל אויב חוצה את הפאנל */
+.cbt-photo-wrap--enemy-sky-only {
+  --cbt-enemy-flight-duration: 18s;
+  height: min(calc(100dvh - 168px), 960px);
+  min-height: min(62dvh, 480px);
+  background:
+    radial-gradient(ellipse 100% 55% at 50% -5%, rgba(56, 189, 248, 0.12) 0%, transparent 52%),
+    radial-gradient(ellipse 80% 40% at 18% 22%, rgba(129, 140, 248, 0.08) 0%, transparent 45%),
+    linear-gradient(185deg, #020617 0%, #0c1222 14%, #1e293b 38%, #172554 62%, #0f172a 88%, #020617 100%);
+  border-color: rgba(56, 189, 248, 0.22);
+}
+
+.cbt-photo-wrap--enemy-sky-only .cbt-scene-enemy-sky {
+  top: 0;
+  bottom: 0;
+  height: auto;
+  min-height: 100%;
+  background:
+    radial-gradient(ellipse 95% 50% at 48% 0%, rgba(30, 64, 175, 0.35) 0%, transparent 58%),
+    radial-gradient(ellipse 70% 45% at 12% 28%, rgba(79, 70, 229, 0.12) 0%, transparent 50%),
+    linear-gradient(
+      180deg,
+      rgba(2, 6, 23, 0.15) 0%,
+      rgba(15, 23, 42, 0.35) 35%,
+      rgba(30, 27, 75, 0.2) 65%,
+      rgba(15, 23, 42, 0.5) 100%
+    );
+}
+
+.cbt-photo-wrap--enemy-sky-only .cbt-scene-enemy-layer {
+  z-index: 3;
+  overflow: visible;
+  pointer-events: auto;
+}
+
+.cbt-photo-wrap--enemy-sky-only .cbt-scene-enemy-rocket {
+  animation: cbt-enemy-cross-sky var(--cbt-enemy-flight-duration, 18s) linear infinite alternate;
+}
+
+.cbt-photo-wrap--enemy-sky-only .cbt-scene-enemy-rocket::before {
+  animation:
+    cbt-enemy-exhaust-flicker 0.14s ease-in-out infinite alternate,
+    cbt-enemy-plume-by-distance var(--cbt-enemy-flight-duration, 18s) linear infinite alternate;
+}
+
+.cbt-photo-wrap--enemy-sky-only .cbt-scene-enemy-rocket::after {
+  animation:
+    cbt-enemy-exhaust-smoke 0.55s ease-in-out infinite alternate,
+    cbt-enemy-smoke-by-distance var(--cbt-enemy-flight-duration, 18s) linear infinite alternate;
+}
+
+.cbt-photo-wrap--enemy-sky-only .cbt-scene-enemy-rocket.cbt-scene-enemy-rocket--threat {
+  animation: cbt-scene-enemy-threat 0.85s cubic-bezier(0.18, 0.92, 0.25, 1) forwards;
+}
+
+/* גרירה לכיוון משגר; מעל השמיים, מתחת לתג */
+.cbt-scene-aim-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  cursor: crosshair;
+  touch-action: none;
+  background: transparent;
+}
+
+.cbt-scene-aim-overlay--locked {
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* הקפאה: עצירת מסלול טיל האויב והשובלים — לא כשאנימציית איום פעילה */
+.cbt-combat-frozen .cbt-scene-enemy-rocket:not(.cbt-scene-enemy-rocket--threat),
+.cbt-combat-frozen .cbt-scene-enemy-rocket:not(.cbt-scene-enemy-rocket--threat)::before,
+.cbt-combat-frozen .cbt-scene-enemy-rocket:not(.cbt-scene-enemy-rocket--threat)::after,
+.cbt-combat-frozen .cbt-scene-enemy-rocket:not(.cbt-scene-enemy-rocket--threat) .cbt-enemy-meteor-sparkle,
+.cbt-combat-frozen .cbt-scene-enemy-rocket:not(.cbt-scene-enemy-rocket--threat) .cbt-enemy-meteor-streak-svg {
+  animation-play-state: paused;
+}
+
+/* הקפאה: כל שכבת הקרב (טיל מרחוק, שובלים, משגר) — חריגים לשיגור/איום/פגיעה */
+.cbt-play.cbt-combat-frozen .cbt-launcher-photo-wrap * {
+  animation-play-state: paused !important;
+}
+
+.cbt-play.cbt-combat-frozen .cbt-launcher-photo-wrap .cbt-scene-enemy-rocket--threat,
+.cbt-play.cbt-combat-frozen .cbt-launcher-photo-wrap .cbt-scene-enemy-rocket--threat *,
+.cbt-play.cbt-combat-frozen .cbt-launcher-photo-wrap .cbt-launch-flight.is-active,
+.cbt-play.cbt-combat-frozen .cbt-launcher-photo-wrap .cbt-launch-flight.is-active *,
+.cbt-play.cbt-combat-frozen .cbt-launcher-photo-wrap .cbt-in-frame-hit,
+.cbt-play.cbt-combat-frozen .cbt-launcher-photo-wrap .cbt-in-frame-hit * {
+  animation-play-state: running !important;
+}
+
+.cbt-play.cbt-combat-frozen .cbt-launcher-tube,
+.cbt-play.cbt-combat-frozen .cbt-launcher-tube * {
+  animation-play-state: paused !important;
+}
+
+.cbt-play.cbt-combat-frozen .cbt-launcher-tube .cbt-launch-flight.is-active,
+.cbt-play.cbt-combat-frozen .cbt-launcher-tube .cbt-launch-flight.is-active * {
+  animation-play-state: running !important;
+}
+
+/* וידאו משגר — פינה ימנית־תחתונה; רקע סטטי בלבד (לא מסתובב — אי אפשר לבודד משגר מווידאו שטוח) */
+.cbt-real-launcher-bay {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: min(48%, 320px);
+  height: min(40%, 260px);
+  min-height: min(200px, 30vh);
+  z-index: 5;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: 10px 0 12px 0;
+  box-shadow:
+    -6px 0 0 rgba(15, 23, 42, 0.35),
+    -4px 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.cbt-real-launcher-video {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 260%;
+  height: 260%;
+  object-fit: cover;
+  object-position: 100% 100%;
+  filter: brightness(0.96) contrast(1.06);
+  pointer-events: none;
+}
+
+/* מסלול הטיל ארוך — לא לחתוך את הקשת בקצוות המסגרת */
+.cbt-launcher-photo-wrap.cbt-photo-wrap--enemy-sky-only {
+  overflow: visible;
+}
+
+/* שיגור מיירט מוצג מימין־תחתון (ליד המשגר בתמונה) */
+.cbt-photo-wrap--enemy-sky-only .cbt-launch-flight {
+  display: block;
+  left: auto;
+  right: 4%;
+  bottom: 3%;
+  width: min(28%, 172px);
+  transform: translateX(0);
+  transform-origin: 50% 100%;
+}
+
+.cbt-photo-wrap--enemy-sky-only .cbt-launch-flight.is-hostile {
+  left: auto;
+  right: 4%;
+  bottom: 3%;
+  transform: translateX(0);
+}
+
+.cbt-photo-wrap--enemy-sky-only .cbt-launch-flight.is-active {
+  animation: cbt-launch-flight-rise-br 1.05s cubic-bezier(0.18, 0.82, 0.25, 1) forwards;
+}
+
+.cbt-photo-wrap--enemy-sky-only .cbt-launch-flight.is-active.is-hostile {
+  animation: cbt-launch-flight-hostile-br 0.82s cubic-bezier(0.18, 0.92, 0.25, 1) forwards;
+}
+
+@keyframes cbt-launch-flight-rise-br {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(-6deg) scale(0.94);
+  }
+  52% {
+    opacity: 0.96;
+    transform: translate(calc(-1 * min(42vw, 320px)), calc(-1 * min(38vh, 280px))) rotate(-26deg) scale(0.92);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-1 * min(58vw, 440px)), calc(-1 * min(52vh, 380px))) rotate(-34deg) scale(0.82);
+  }
+}
+
+@keyframes cbt-launch-flight-hostile-br {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(2deg) scale(0.9);
+    filter: brightness(1);
+  }
+  48% {
+    opacity: 1;
+    transform: translate(-36px, 72px) rotate(18deg) scale(0.96);
+    filter: brightness(1.08);
+  }
+  100% {
+    opacity: 0.32;
+    transform: translate(-12px, 128px) rotate(32deg) scale(0.8);
+    filter: brightness(0.9);
+  }
+}
+
+/* מצב וידאו משגר — משגר רק בפינה; שמיים וטיל בשכבה מעל */
+.cbt-photo-wrap--combat-video {
+  overflow: visible;
+  min-height: min(46dvh, 440px);
+}
+
+.cbt-launcher-tube:has(.cbt-photo-wrap--combat-video) {
+  overflow: visible;
+}
+
+.cbt-photo-wrap--combat-video .cbt-scene-enemy-layer {
+  overflow: visible;
+  pointer-events: auto;
+}
+
+.cbt-photo-wrap--combat-video .cbt-scene-enemy-sky {
+  top: 0;
+  bottom: 0;
+  height: auto;
+  min-height: 100%;
+}
+
+.cbt-photo-wrap--combat-video .cbt-launch-flight {
+  display: block;
+  left: auto;
+  right: 4%;
+  bottom: 3%;
+  width: min(28%, 172px);
+  transform: translateX(0);
+  transform-origin: 50% 100%;
+}
+
+.cbt-photo-wrap--combat-video .cbt-launch-flight.is-hostile {
+  left: auto;
+  right: 4%;
+  bottom: 3%;
+  transform: translateX(0);
+}
+
+.cbt-photo-wrap--combat-video .cbt-launch-flight.is-active {
+  animation: cbt-launch-flight-rise-br 1.05s cubic-bezier(0.18, 0.82, 0.25, 1) forwards;
+}
+
+.cbt-photo-wrap--combat-video .cbt-launch-flight.is-active.is-hostile {
+  animation: cbt-launch-flight-hostile-br 0.82s cubic-bezier(0.18, 0.92, 0.25, 1) forwards;
+}
+
+.cbt-launching .cbt-launcher-photo-wrap {
+  overflow: visible;
+}
+
+.cbt-launching .cbt-real-launcher-bay {
+  filter: brightness(1.025);
+}
+
+/* מיקום המשגר; perspective כאן כדי ש-rotateX (עומק) ייראה; הסיבוב השטוח נשאר על ה-pivot ב-rotateZ */
+.cbt-launcher-deck-aim {
+  position: absolute;
+  left: 50%;
+  top: 86px;
+  width: min(70%, 420px);
+  z-index: 6;
+  pointer-events: none;
+  perspective: 1400px;
+  perspective-origin: 50% 86%;
+  transform-style: preserve-3d;
+}
+
+.cbt-launcher-deck-aim--combat {
+  left: auto;
+  right: 0;
+  bottom: 0;
+  top: auto;
+  width: min(52%, 340px);
+}
+
+.cbt-launcher-turntable-pivot {
+  position: relative;
+  width: 100%;
+  transform-style: preserve-3d;
+  transform-origin: 50% 100%;
+  transition: none;
+  will-change: transform;
+}
+
+.cbt-launcher-deck-aim--combat .cbt-launcher-turntable-pivot {
+  transform-origin: 72% 100%;
+}
+
+/* משגר קומפקטי בתחתית המסגרת בלבד — לא צף באמצע השמיים */
+.cbt-photo-wrap--enemy-sky-only .cbt-launcher-deck-aim {
+  top: auto;
+  bottom: 0;
+  left: 50%;
+  right: auto;
+  width: min(300px, 88vw);
+  transform: translateX(-50%) scale(0.56);
+  transform-origin: 50% 100%;
+  perspective: 1100px;
+  perspective-origin: 50% 100%;
+}
+
+.cbt-launcher-turntable-depth-tilt {
+  position: relative;
+  width: 100%;
+  transform-style: preserve-3d;
+  transform-origin: 50% 100%;
+}
+
+/* צלחת מסתובבת (מראה תקליט) — מתחת לכל המתקן */
+.cbt-launcher-turntable-base {
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  width: 104%;
+  max-width: 440px;
+  height: 44px;
+  transform: translateX(-50%) translateZ(-12px) rotateX(82deg);
+  transform-origin: 50% 100%;
+  border-radius: 50%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 46% 42% at 50% 48%, rgba(30, 41, 59, 0.35) 0%, transparent 52%),
+    radial-gradient(ellipse 100% 100% at 50% 38%, rgba(100, 116, 139, 0.55) 0%, rgba(51, 65, 85, 0.75) 42%, rgba(15, 23, 42, 0.92) 100%);
+  box-shadow:
+    inset 0 2px 6px rgba(226, 232, 240, 0.12),
+    inset 0 -4px 10px rgba(0, 0, 0, 0.45),
+    0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+.cbt-launcher-turntable-base::before {
+  content: '';
+  position: absolute;
+  inset: 14% 8% 20% 8%;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 0 1px rgba(15, 23, 42, 0.55),
+    inset 0 0 0 4px rgba(148, 163, 184, 0.1);
+  pointer-events: none;
+}
+
+.cbt-launcher-turntable-base::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 44%;
+  width: 9px;
+  height: 9px;
+  margin: -4px 0 0 -4px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 32%, #94a3b8, #0f172a 78%);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
+.cbt-launcher-deck-aim--combat .cbt-launcher-turntable-base {
+  left: 72%;
+  width: 76%;
+  bottom: -4px;
+}
+
+.cbt-launcher-deck {
+  position: relative;
+  width: 100%;
+  perspective: 1200px;
+  z-index: 3;
+  transform-style: preserve-3d;
+  transform-origin: 50% 55%;
+}
+
+/* אחרי .cbt-launcher-deck — perspective:none חייב לנצח; בלי זה + rotateZ הילדים עדיין עם perspective מקוננת */
+.cbt-launcher-turntable-pivot > .cbt-launcher-deck {
+  perspective: none;
+}
+
+.cbt-launcher-turntable-pivot .cbt-missile-iron-bundle .cbt-single-missile-grid {
+  perspective: none;
+}
+
+.cbt-launcher-turntable-pivot .cbt-single-missile-wrap {
+  transform: rotateX(4deg);
+  transform-style: preserve-3d;
+}
+
+.cbt-launcher-turntable-pivot .cbt-missile-iron-bundle-hoop--unified {
+  transform: translate(-50%, calc(-50% + 56px)) rotateX(18deg);
+}
+
+.cbt-launcher-deck.is-spinning {
+  animation: none;
+}
+
+.cbt-launcher-deck.is-settling {
+  animation: none;
+}
+
+@keyframes cbt-deck-true-spin {
+  0% { transform: translateX(-50%) rotateZ(0deg); }
+  100% { transform: translateX(-50%) rotateZ(360deg); }
+}
+
+@keyframes cbt-deck-post-spin-settle {
+  0% { transform: translateX(-50%) rotateZ(0deg); }
+  35% { transform: translateX(-50%) rotateZ(-8deg); }
+  70% { transform: translateX(-50%) rotateZ(5deg); }
+  100% { transform: translateX(-50%) rotateZ(0deg); }
+}
+
+.cbt-launcher-bay {
+  position: relative;
+  height: 186px;
+  border-radius: 8px;
+  border: 1px solid rgba(156, 163, 175, 0.72);
+  background:
+    linear-gradient(180deg, rgba(148, 163, 184, 0.9) 0%, rgba(107, 114, 128, 0.95) 48%, rgba(75, 85, 99, 0.98) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(31, 41, 55, 0.86),
+    inset 0 11px 16px rgba(229, 231, 235, 0.08),
+    0 12px 20px rgba(2, 6, 23, 0.42);
+  transform-style: preserve-3d;
+  transform-origin: 50% 50%;
+  transform: rotateX(24deg) rotateY(-10deg) rotateZ(-14deg);
+  overflow: hidden;
+  clip-path: polygon(6% 0, 100% 8%, 92% 100%, 0 92%);
+}
+
+/* Launcher "תיבת צבעים" תלת־מימדית (3x3x3) */
+.cbt-launcher-bay--cube {
+  position: relative;
+  height: 320px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  overflow: visible;
+  clip-path: none;
+  transform: none;
+}
+
+.cbt-launcher-crate-side-panel {
+  --cbt-crate-zoom: 0;
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 8;
+  width: min(min(calc(78px + var(--cbt-crate-zoom) * 34px), calc(28vw + var(--cbt-crate-zoom) * 10vw)), 92vw);
+  max-height: min(88%, calc(220px + var(--cbt-crate-zoom) * 42px));
+  padding: calc(5px + var(--cbt-crate-zoom) * 0.5px) calc(6px + var(--cbt-crate-zoom) * 0.65px);
+  border-radius: 5px;
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0.92), rgba(30, 41, 59, 0.62));
+  border: 1px solid rgba(148, 163, 184, 0.42);
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.35rem;
+}
+
+.cbt-launcher-crate-serial {
+  font-family: ui-monospace, 'Cascadia Code', monospace;
+  font-size: 0.56rem;
+  font-weight: 800;
+  color: #e2e8f0;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+}
+
+.cbt-launcher-crate-thought {
+  margin: 0;
+  padding: 0;
+  border: none;
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+  font-size: calc(0.52rem + var(--cbt-crate-zoom) * 0.12rem);
+  line-height: calc(1.28 + var(--cbt-crate-zoom) * 0.026);
+  font-weight: 800;
+  color: #f8fafc;
+  text-align: right;
+  direction: rtl;
+  overflow-wrap: anywhere;
+  max-height: min(70vh, calc(180px + var(--cbt-crate-zoom) * 40px));
+  overflow-y: auto;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  background: transparent;
+  pointer-events: auto;
+  position: relative;
+  z-index: 12;
+}
+
+.cbt-launcher-crate-thought:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.75);
+  outline-offset: 2px;
+}
+
+.cbt-launcher-bay--cube::before,
+.cbt-launcher-bay--cube::after {
+  display: none !important;
+}
+
+.cbt-iron-cube-launcher {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform-style: preserve-3d;
+}
+
+.cbt-iron-cube-frame {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 156px;
+  height: 254px;
+  transform: translate(-50%, -50%) translateZ(28px);
+  border-radius: 10px;
+  border: 3px solid rgba(100, 116, 139, 0.95);
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.8) inset,
+    0 0 0 3px rgba(30, 41, 59, 0.7) inset,
+    inset 0 18px 22px rgba(241, 245, 249, 0.08),
+    inset 0 -14px 18px rgba(2, 6, 23, 0.45),
+    0 14px 34px rgba(2, 6, 23, 0.5);
+  background:
+    linear-gradient(180deg, rgba(100, 116, 139, 0.5), rgba(30, 41, 59, 0.88)),
+    #111827;
+}
+
+.cbt-iron-cube-frame::before,
+.cbt-iron-cube-frame::after {
+  content: '';
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  width: 12px;
+  border-radius: 4px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: linear-gradient(180deg, rgba(71, 85, 105, 0.95), rgba(30, 41, 59, 1));
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.65);
+}
+
+.cbt-iron-cube-frame::before {
+  left: 8px;
+}
+
+.cbt-iron-cube-frame::after {
+  right: 8px;
+}
+
+.cbt-iron-launcher-rig {
+  position: absolute;
+  left: 50%;
+  top: 56%;
+  width: 164px;
+  height: 236px;
+  transform-style: preserve-3d;
+  transform: translate(-50%, -50%) rotateX(16deg) rotateZ(-8deg) rotateY(var(--cbt-face-yaw, 0deg));
+  transition: transform 0.32s ease-out;
+}
+
+.cbt-iron-launcher-rig.is-spinning {
+  animation: cbt-iron-rig-spin 0.75s linear infinite;
+}
+
+@keyframes cbt-iron-rig-spin {
+  from { transform: translate(-50%, -50%) rotateX(16deg) rotateZ(-8deg) rotateY(0deg); }
+  to { transform: translate(-50%, -50%) rotateX(16deg) rotateZ(-8deg) rotateY(360deg); }
+}
+
+.cbt-iron-launcher-face {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 154px;
+  height: 206px;
+  transform-style: preserve-3d;
+  transform: translateX(-50%) rotateY(var(--cbt-face-angle)) translateZ(58px);
+  border-radius: 6px;
+  border: 3px solid rgba(100, 116, 139, 0.95);
+  border-bottom: 4px solid rgba(148, 163, 184, 0.8);
+  background:
+    linear-gradient(180deg, rgba(100, 116, 139, 0.75), rgba(30, 41, 59, 0.96)),
+    repeating-linear-gradient(180deg, rgba(2, 6, 23, 0.08) 0, rgba(2, 6, 23, 0.08) 8px, rgba(148, 163, 184, 0.04) 8px, rgba(148, 163, 184, 0.04) 16px);
+  box-shadow:
+    inset 0 0 0 1px rgba(15, 23, 42, 0.9),
+    inset 0 0 0 3px rgba(30, 41, 59, 0.8),
+    inset 0 18px 20px rgba(226, 232, 240, 0.08),
+    0 14px 24px rgba(2, 6, 23, 0.5);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 8px;
+  padding: 12px 12px 14px;
+  overflow: hidden;
+  clip-path: polygon(4% 0, 100% 3%, 96% 100%, 0 97%);
+  isolation: isolate;
+}
+
+.cbt-iron-launcher-face::after {
+  content: '';
+  position: absolute;
+  top: 10px;
+  bottom: 12px;
+  right: -10px;
+  width: 12px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(71, 85, 105, 0.96), rgba(30, 41, 59, 0.98));
+  border: 2px solid rgba(100, 116, 139, 0.78);
+  transform: skewY(-8deg);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.7);
+  z-index: -1;
+}
+
+.cbt-iron-launcher-face.is-active-face {
+  filter: brightness(1.06) contrast(1.03);
+}
+
+.cbt-iron-launcher-cell {
+  position: relative;
+  border-radius: 8px;
+  border: 2px solid rgba(120, 135, 156, 0.95);
+  background:
+    linear-gradient(180deg, rgba(71, 85, 105, 0.85), rgba(30, 41, 59, 0.98)),
+    repeating-linear-gradient(
+      90deg,
+      rgba(148, 163, 184, 0.06) 0,
+      rgba(148, 163, 184, 0.06) 6px,
+      rgba(2, 6, 23, 0.08) 6px,
+      rgba(2, 6, 23, 0.08) 12px
+    );
+  overflow: hidden;
+  box-shadow:
+    inset 0 0 0 1px rgba(15, 23, 42, 0.85),
+    inset 0 0 0 3px rgba(30, 41, 59, 0.85),
+    inset 0 10px 14px rgba(226, 232, 240, 0.08),
+    0 4px 8px rgba(2, 6, 23, 0.45);
+  min-height: 56px;
+  padding-top: 8px;
+}
+
+.cbt-iron-launcher-cell-door {
+  position: absolute;
+  left: 50%;
+  top: 7px;
+  width: 78%;
+  height: 16px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  border: 1px solid rgba(203, 213, 225, 0.65);
+  background:
+    radial-gradient(ellipse at 50% 35%, rgba(226, 232, 240, 0.95), rgba(100, 116, 139, 0.92) 62%, rgba(15, 23, 42, 0.92) 100%);
+  box-shadow: 0 2px 4px rgba(2, 6, 23, 0.5);
+}
+
+.cbt-iron-launcher-cell-tube {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  bottom: 14px;
+  width: 86%;
+  transform: translateX(-50%);
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.42);
+  background:
+    linear-gradient(180deg, rgba(2, 6, 23, 0.88), rgba(15, 23, 42, 0.62)),
+    radial-gradient(circle at 50% 22%, rgba(148, 163, 184, 0.12), rgba(2, 6, 23, 0) 55%);
+  box-shadow:
+    inset 0 6px 10px rgba(0, 0, 0, 0.7),
+    inset 0 -2px 4px rgba(148, 163, 184, 0.12);
+  overflow: hidden;
+}
+
+.cbt-iron-launcher-missile {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  width: 74%;
+  height: calc(100% - 30px);
+  transform: translateX(-50%);
+  border-radius: 12px 12px 6px 6px;
+  border: 1px solid rgba(203, 213, 225, 0.32);
+  background:
+    linear-gradient(90deg, rgba(224, 236, 246, 0.9), rgba(133, 153, 110, 0.98) 35%, rgba(73, 91, 54, 1) 65%, rgba(36, 51, 31, 1) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(15, 23, 42, 0.55),
+    inset -6px 0 10px rgba(2, 6, 23, 0.35),
+    0 0 10px rgba(2, 6, 23, 0.5);
+}
+
+.cbt-iron-launcher-missile-nose {
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  width: 62%;
+  height: 14px;
+  transform: translateX(-50%);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  background: linear-gradient(180deg, #f8fafc, #94a3b8 35%, #334155 100%);
+}
+
+.cbt-iron-launcher-missile::before,
+.cbt-iron-launcher-missile::after {
+  content: '';
+  position: absolute;
+  bottom: 8px;
+  width: 9px;
+  height: 14px;
+  background: linear-gradient(180deg, #94a3b8, #334155);
+}
+
+.cbt-iron-launcher-missile::before {
+  left: -7px;
+  clip-path: polygon(100% 0, 100% 100%, 0 72%);
+}
+
+.cbt-iron-launcher-missile::after {
+  right: -7px;
+  clip-path: polygon(0 0, 0 100%, 100% 72%);
+}
+
+.cbt-iron-launcher-stand {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  width: 168px;
+  height: 38px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.75);
+  background: linear-gradient(180deg, rgba(100, 116, 139, 0.95), rgba(2, 6, 23, 0.98));
+  box-shadow:
+    0 12px 26px rgba(2, 6, 23, 0.45),
+    inset 0 0 0 1px rgba(15, 23, 42, 0.65);
+}
+
+.cbt-iron-launcher-stand::before {
+  content: '';
+  position: absolute;
+  inset: 6px 20px;
+  border-radius: 999px;
+  border: 2px dashed rgba(148, 163, 184, 0.45);
+}
+
+.cbt-iron-launcher-stand.is-spinning {
+  animation: cbt-iron-stand-spin 0.75s linear infinite;
+}
+
+@keyframes cbt-iron-stand-spin {
+  from { transform: translateX(-50%) rotate(0deg); }
+  to { transform: translateX(-50%) rotate(360deg); }
+}
+
+.cbt-iron-launcher-strut {
+  position: absolute;
+  bottom: 26px;
+  width: 14px;
+  height: 78px;
+  border-radius: 4px;
+  border: 1px solid rgba(100, 116, 139, 0.8);
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.82), rgba(51, 65, 85, 0.95));
+  transform-origin: 50% 100%;
+}
+
+.cbt-iron-launcher-strut--l {
+  left: 30%;
+  transform: skewX(-14deg);
+}
+
+.cbt-iron-launcher-strut--r {
+  right: 30%;
+  transform: skewX(14deg);
+}
+
+.cbt-iron-cube-box {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 164px;
+  height: 320px;
+  transform-style: preserve-3d;
+  transform: translate(-50%, -50%) rotateX(14deg);
+  overflow: visible;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.58);
+  box-shadow:
+    inset 0 0 0 1px rgba(15, 23, 42, 0.55),
+    inset 0 20px 24px rgba(226, 232, 240, 0.12),
+    inset 0 -18px 20px rgba(2, 6, 23, 0.55);
+  background:
+    linear-gradient(180deg, rgba(100, 116, 139, 0.78), rgba(30, 41, 59, 0.96)),
+    repeating-linear-gradient(
+      180deg,
+      rgba(15, 23, 42, 0.06) 0,
+      rgba(15, 23, 42, 0.06) 8px,
+      rgba(148, 163, 184, 0.03) 8px,
+      rgba(148, 163, 184, 0.03) 16px
+    );
+  --cbt-iron-face-z: 56px;
+}
+
+.cbt-iron-cube-box::before,
+.cbt-iron-cube-box::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 8px;
+  width: 16px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #64748b, #334155);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.6);
+}
+
+.cbt-iron-cube-box::before {
+  left: -10px;
+  transform: rotateY(72deg);
+  transform-origin: 100% 50%;
+}
+
+.cbt-iron-cube-box::after {
+  right: -10px;
+  transform: rotateY(-72deg);
+  transform-origin: 0 50%;
+}
+
+.cbt-iron-cube-floor {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  width: 146px;
+  height: 146px;
+  transform: translateX(-50%) translateZ(4px) rotateX(90deg);
+  border-radius: 8px;
+  border: 1px solid rgba(100, 116, 139, 0.62);
+  background:
+    linear-gradient(180deg, rgba(148, 163, 184, 0.2), rgba(30, 41, 59, 0.55)),
+    repeating-linear-gradient(90deg, rgba(148, 163, 184, 0.08) 0, rgba(148, 163, 184, 0.08) 10px, transparent 10px, transparent 20px);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.7);
+}
+
+.cbt-iron-cube-turret {
+  position: absolute;
+  left: 50%;
+  top: 56%;
+  width: 160px;
+  height: 280px;
+  transform-style: preserve-3d;
+  transform: translate(-50%, -50%) rotateY(var(--cbt-face-yaw, 0deg));
+  transition: transform 0.34s ease-out;
+}
+
+.cbt-iron-cube-turret.is-spinning {
+  animation: cbt-iron-turret-spin 0.75s linear infinite;
+}
+
+@keyframes cbt-iron-turret-spin {
+  from { transform: translate(-50%, -50%) rotateY(0deg); }
+  to { transform: translate(-50%, -50%) rotateY(360deg); }
+}
+
+.cbt-iron-face {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  width: 148px;
+  height: 266px;
+  transform-style: preserve-3d;
+  transform:
+    translateX(-50%)
+    rotateY(var(--cbt-face-angle))
+    translateZ(var(--cbt-iron-face-z));
+  border-radius: 10px 10px 4px 4px;
+  border: 2px solid rgba(148, 163, 184, 0.55);
+  border-bottom-width: 3px;
+  background:
+    linear-gradient(180deg, rgba(148, 163, 184, 0.52), rgba(30, 41, 59, 0.9)),
+    #111827;
+  box-shadow:
+    inset 0 0 0 1px rgba(15, 23, 42, 0.72),
+    inset 0 14px 16px rgba(241, 245, 249, 0.08),
+    0 8px 16px rgba(2, 6, 23, 0.42);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 7px;
+  align-items: stretch;
+  padding: 10px 10px 12px;
+}
+
+.cbt-iron-missile-slot {
+  position: relative;
+  height: auto;
+  min-height: 72px;
+  border-radius: 10px;
+  border: 1px solid rgba(71, 85, 105, 0.85);
+  background:
+    linear-gradient(180deg, rgba(2, 6, 23, 0.75), rgba(15, 23, 42, 0.96)),
+    repeating-linear-gradient(
+      180deg,
+      rgba(148, 163, 184, 0.04) 0,
+      rgba(148, 163, 184, 0.04) 6px,
+      rgba(15, 23, 42, 0.08) 6px,
+      rgba(15, 23, 42, 0.08) 12px
+    );
+  box-shadow:
+    inset 0 8px 10px rgba(2, 6, 23, 0.86),
+    inset 0 -4px 5px rgba(148, 163, 184, 0.12),
+    0 2px 8px rgba(2, 6, 23, 0.45);
+}
+
+.cbt-iron-tube-rim {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  width: 26px;
+  height: 14px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  border: 1.6px solid rgba(148, 163, 184, 0.72);
+  background: radial-gradient(ellipse at 50% 35%, rgba(226, 232, 240, 0.72), rgba(71, 85, 105, 0.85) 70%);
+}
+
+.cbt-iron-tube-inner {
+  position: absolute;
+  left: 50%;
+  top: 13px;
+  width: 18px;
+  height: calc(100% - 28px);
+  transform: translateX(-50%);
+  border-radius: 10px 10px 8px 8px;
+  background: linear-gradient(180deg, rgba(2, 6, 23, 0.86), rgba(15, 23, 42, 0.35));
+  box-shadow: inset 0 6px 10px rgba(0, 0, 0, 0.65);
+}
+
+.cbt-iron-missile-body {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  width: 12px;
+  height: calc(100% - 42px);
+  transform: translateX(-50%);
+  border-radius: 6px 6px 4px 4px;
+  border: 1px solid rgba(203, 213, 225, 0.35);
+  background: linear-gradient(90deg, rgba(226, 232, 240, 0.68), rgba(100, 116, 139, 0.92) 38%, rgba(51, 65, 85, 0.95) 100%);
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.45) inset;
+}
+
+.cbt-iron-missile-nose {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  width: 10px;
+  height: 10px;
+  transform: translateX(-50%);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  background: linear-gradient(180deg, rgba(203, 213, 225, 0.98), rgba(71, 85, 105, 0.98));
+}
+
+.cbt-iron-missile-fin {
+  position: absolute;
+  bottom: 12px;
+  width: 5px;
+  height: 12px;
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.82), rgba(51, 65, 85, 0.95));
+}
+
+.cbt-iron-missile-fin--l {
+  left: calc(50% - 10px);
+  clip-path: polygon(100% 0, 100% 100%, 0 78%);
+}
+
+.cbt-iron-missile-fin--r {
+  right: calc(50% - 10px);
+  clip-path: polygon(0 0, 0 100%, 100% 78%);
+}
+
+.cbt-iron-missile-slot.is-active-face::before {
+  filter: brightness(1.03);
+}
+
+.cbt-iron-cube-stand {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  width: 96px;
+  height: 26px;
+  transform: translateX(-50%) translateZ(-8px);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(148, 163, 184, 0.6), rgba(15, 23, 42, 0.65));
+  box-shadow:
+    0 12px 30px rgba(2, 6, 23, 0.35),
+    0 0 0 1px rgba(148, 163, 184, 0.45) inset;
+}
+
+.cbt-launcher-bay--cube.is-spinning,
+.cbt-launcher-bay--cube.is-settling {
+  animation: none !important;
+}
+
+/* חישוקי ברזל: מסגרת מאוחדת (3 קומות) — אחור / קדם */
+.cbt-missile-iron-bundle {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%) rotateZ(-5deg);
+  transform-origin: 50% 100%;
+  width: min(340px, 96%);
+  height: 285px;
+  pointer-events: none;
+  z-index: 0;
+  overflow: visible;
+  background: transparent;
+  border: none;
+}
+
+.cbt-missile-iron-bundle-hoop {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  width: 158%;
+  min-width: 420px;
+  height: 70%;
+  min-height: 172px;
+  max-height: 212px;
+  transform: translate(-50%, -50%) perspective(720px) rotateX(18deg);
+  transform-origin: center center;
+  filter:
+    drop-shadow(0 8px 16px rgba(0, 0, 0, 0.55))
+    drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45))
+    saturate(0.78)
+    brightness(0.94);
+  pointer-events: none;
+}
+
+.cbt-missile-iron-bundle-hoop--back {
+  z-index: 0;
+}
+
+.cbt-missile-iron-bundle-hoop--front {
+  z-index: 2;
+}
+
+/* שלוש קומות במסלול אחד — סרט עבה; צל עמוק (מראה מבנה עמיד) */
+.cbt-missile-iron-bundle-hoop--unified {
+  height: 128%;
+  min-height: 300px;
+  max-height: 372px;
+  transform: translate(-50%, calc(-50% + 56px)) perspective(720px) rotateX(18deg);
+  filter:
+    drop-shadow(0 12px 22px rgba(0, 0, 0, 0.58))
+    drop-shadow(0 4px 10px rgba(0, 0, 0, 0.48))
+    drop-shadow(0 1px 0 rgba(40, 42, 38, 0.35))
+    saturate(0.76)
+    brightness(0.93);
+}
+
+.cbt-missile-iron-bundle .cbt-single-missile-grid {
+  position: relative;
+  height: 285px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  pointer-events: none;
+  perspective: 880px;
+  transform-style: preserve-3d;
+  z-index: 1;
+}
+
+.cbt-single-missile-row {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: center;
+  gap: clamp(4px, 1.2vw, 12px);
+  pointer-events: none;
+  transform-origin: 50% 100%;
+}
+
+.cbt-single-missile-row--rear {
+  z-index: 0;
+  margin-bottom: -208px;
+  transform: translateZ(-76px) scale(0.84);
+  filter: brightness(0.62);
+}
+
+.cbt-single-missile-row--back {
+  z-index: 1;
+  margin-bottom: -208px;
+  transform: translateZ(-38px) scale(0.9);
+  filter: brightness(0.78);
+}
+
+.cbt-single-missile-row--front {
+  z-index: 2;
+  transform: translateZ(0);
+}
+
+.cbt-single-missile-wrap {
+  position: relative;
+  flex: 0 0 auto;
+  width: 86px;
+  height: 250px;
+  transform: perspective(680px) rotateY(-11deg) rotateX(4deg);
+  transform-style: preserve-3d;
+  pointer-events: none;
+}
+
+.cbt-single-missile-body {
+  position: absolute;
+  left: 50%;
+  top: 42px;
+  bottom: 0;
+  width: 54px;
+  transform: translateX(-50%);
+  border-radius: 22px 22px 12px 12px;
+  border: none;
+  background:
+    radial-gradient(ellipse 48% 100% at 26% 50%, rgba(241, 245, 249, 0.46), rgba(241, 245, 249, 0.02) 58%),
+    radial-gradient(ellipse 42% 100% at 76% 50%, rgba(51, 65, 85, 0.85), rgba(15, 23, 42, 0.96) 70%),
+    linear-gradient(90deg, #94a3b8 0%, #64748b 42%, #475569 68%, #334155 100%);
+  box-shadow:
+    inset -10px 0 14px rgba(2, 6, 23, 0.42),
+    inset 8px 0 10px rgba(241, 245, 249, 0.16),
+    0 4px 10px rgba(2, 6, 23, 0.38);
+}
+
+.cbt-single-missile-body::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 36px;
+  height: 16px;
+  transform: translateX(-50%);
+  border-radius: 0 0 14px 14px;
+  border: none;
+  background: linear-gradient(180deg, rgba(71, 85, 105, 0.95), rgba(15, 23, 42, 0.98));
+}
+
+.cbt-single-missile-wrap::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 94px;
+  width: 48px;
+  height: 12px;
+  transform: translateX(-50%);
+  border-radius: 3px;
+  background: repeating-linear-gradient(
+    90deg,
+    #111827 0 7px,
+    #f59e0b 7px 14px
+  );
+  border: 1px solid rgba(15, 23, 42, 0.7);
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.15) inset;
+}
+
+.cbt-single-missile-wrap::after {
+  content: 'ARM';
+  position: absolute;
+  left: 50%;
+  top: 116px;
+  transform: translateX(-50%);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: rgba(226, 232, 240, 0.82);
+  text-shadow: 0 1px 1px rgba(2, 6, 23, 0.7);
+}
+
+.cbt-single-missile-nose {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 54px;
+  height: 44px;
+  transform: translateX(-50%);
+  border-radius: 0;
+  clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+  border: none;
+  background:
+    radial-gradient(ellipse 48% 100% at 26% 45%, rgba(241, 245, 249, 0.38), rgba(241, 245, 249, 0.02) 55%),
+    radial-gradient(ellipse 42% 100% at 76% 45%, rgba(51, 65, 85, 0.82), rgba(15, 23, 42, 0.96) 65%),
+    linear-gradient(90deg, #94a3b8 0%, #64748b 42%, #475569 68%, #334155 100%);
+  box-shadow:
+    inset -8px 0 10px rgba(2, 6, 23, 0.38),
+    inset 6px 0 8px rgba(241, 245, 249, 0.12);
+  z-index: 1;
+}
+
+.cbt-single-missile-fin {
+  position: absolute;
+  bottom: 12px;
+  width: 14px;
+  height: 30px;
+  background: linear-gradient(180deg, #64748b, #1e293b);
+}
+
+.cbt-single-missile-fin--l {
+  left: 2px;
+  clip-path: polygon(100% 0, 100% 100%, 0 74%);
+}
+
+.cbt-single-missile-fin--r {
+  right: 2px;
+  clip-path: polygon(0 0, 0 100%, 100% 74%);
+}
+
+.cbt-launcher-face-top {
+  position: absolute;
+  top: -16px;
+  left: 8px;
+  right: 10px;
+  height: 20px;
+  background: linear-gradient(180deg, rgba(209, 213, 219, 0.75), rgba(107, 114, 128, 0.45));
+  transform: skewX(-28deg);
+  border-radius: 4px;
+}
+
+.cbt-launcher-face-side {
+  position: absolute;
+  top: 10px;
+  right: -16px;
+  width: 20px;
+  bottom: 6px;
+  background: linear-gradient(180deg, rgba(75, 85, 99, 0.96), rgba(31, 41, 55, 0.98));
+  transform: skewY(-20deg);
+  border-right: 1px solid rgba(226, 232, 240, 0.2);
+  border-radius: 2px;
+}
+
+.cbt-launcher-bay::before {
+  content: '';
+  position: absolute;
+  right: -18px;
+  top: 8px;
+  width: 24px;
+  height: calc(100% - 16px);
+  background: linear-gradient(180deg, rgba(78, 83, 93, 0.95), rgba(48, 52, 61, 0.98));
+  transform: skewY(-14deg);
+  border-right: 1px solid rgba(209, 213, 219, 0.25);
+}
+
+.cbt-launcher-bay::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 12px;
+  top: -14px;
+  height: 18px;
+  background: linear-gradient(180deg, rgba(186, 193, 203, 0.7), rgba(103, 110, 120, 0.55));
+  transform: skewX(-18deg);
+  border-radius: 3px;
+}
+
+.cbt-launcher-bay.is-spinning {
+  animation: cbt-bay-y-axis-spin 2.4s linear;
+}
+
+.cbt-launcher-bay.is-settling {
+  animation: none;
+}
+
+@keyframes cbt-bay-spin-stop {
+  0% { transform: rotateX(17deg) rotateZ(-16deg) rotateY(0deg); }
+  12% { transform: rotateX(17deg) rotateZ(-16deg) rotateY(55deg); }
+  34% { transform: rotateX(17deg) rotateZ(-16deg) rotateY(180deg); }
+  68% { transform: rotateX(17deg) rotateZ(-16deg) rotateY(315deg); }
+  86% { transform: rotateX(17deg) rotateZ(-16deg) rotateY(350deg); }
+  100% { transform: rotateX(17deg) rotateZ(-16deg) rotateY(360deg); }
+}
+
+@keyframes cbt-bay-y-axis-spin {
+  0% { transform: rotateX(24deg) rotateY(-10deg) rotateZ(-14deg); }
+  100% { transform: rotateX(24deg) rotateY(350deg) rotateZ(-14deg); }
+}
+
+@keyframes cbt-bay-settle-kick {
+  0% { transform: rotateX(17deg) rotateZ(-16deg) translateY(0); }
+  50% { transform: rotateX(17deg) rotateZ(-16deg) translateY(3px); }
+  100% { transform: rotateX(17deg) rotateZ(-16deg) translateY(0); }
+}
+
+.cbt-launcher-rails {
+  position: absolute;
+  inset: 10px 10px auto 10px;
+  height: 14px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(209, 213, 219, 0.5), rgba(107, 114, 128, 0.28));
+  opacity: 0.75;
+}
+
+.cbt-launcher-rack3d {
+  position: absolute;
+  inset: 30px 16px 18px 16px;
+  transform-style: preserve-3d;
+  perspective: 800px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 10px;
+  align-content: start;
+}
+
+.cbt-launcher-rack3d.is-spinning {
+  animation: none;
+}
+
+.cbt-launcher-rack3d.is-settling {
+  animation: none;
+}
+
+@keyframes cbt-rack-turnaround {
+  0% { transform: rotateY(0deg); }
+  50% { transform: rotateY(180deg); }
+  100% { transform: rotateY(360deg); }
+}
+
+@keyframes cbt-rack-settle {
+  0% { transform: translateY(0); }
+  45% { transform: translateY(2px); }
+  100% { transform: translateY(0); }
+}
+
+.cbt-launcher-rack3d.is-firing .cbt-launcher-cell.slot-0 .cbt-launcher-rocket {
+  animation: cbt-rocket-ignite 0.26s ease-in-out infinite alternate;
+}
+
+.cbt-launcher-cell {
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(30, 41, 59, 0.75), rgba(15, 23, 42, 0.96) 70%),
+    linear-gradient(180deg, rgba(75, 85, 99, 0.5), rgba(31, 41, 55, 0.9));
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  box-shadow:
+    inset 0 5px 10px rgba(2, 6, 23, 0.8),
+    inset 0 -2px 4px rgba(203, 213, 225, 0.12),
+    0 2px 4px rgba(2, 6, 23, 0.55);
+  padding: 6px;
+  transform: translateZ(8px);
+}
+
+.cbt-launcher-cell.slot-0 {
+  transform: translateZ(24px);
+}
+
+.cbt-launcher-cell.slot-1,
+.cbt-launcher-cell.slot-2 {
+  transform: translateZ(16px);
+}
+
+.cbt-launcher-empty-tube {
+  height: 100%;
+  border-radius: 999px;
+  background: radial-gradient(circle at 50% 20%, rgba(100, 116, 139, 0.4), rgba(30, 41, 59, 0.92) 70%);
+}
+
+.cbt-launcher-rocket {
+  position: relative;
+  min-height: 48px;
+  height: 100%;
+  border-radius: 999px;
+  border: 2px solid rgba(203, 213, 225, 0.75);
+  background: linear-gradient(180deg, rgba(156, 163, 175, 0.9) 0%, rgba(107, 114, 128, 0.93) 65%, rgba(75, 85, 99, 0.96) 100%);
+  box-shadow:
+    0 4px 8px rgba(2, 6, 23, 0.45),
+    inset 0 0 0 1px rgba(243, 244, 246, 0.16),
+    inset 0 -4px 8px rgba(2, 6, 23, 0.35);
+  padding: 0.32rem 0.34rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+}
+
+.cbt-launcher-rocket.slot-active {
+  border-color: rgba(250, 204, 21, 0.95);
+  box-shadow:
+    0 0 16px rgba(250, 204, 21, 0.45),
+    0 0 0 2px rgba(250, 204, 21, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+}
+
+.cbt-launcher-rocket-id {
+  font-size: 0.55rem;
+  color: #f9fafb;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+
+.cbt-launcher-rocket-fill {
+  height: 15px;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(226, 232, 240, 0.24), rgba(148, 163, 184, 0.18)),
+    repeating-linear-gradient(
+      180deg,
+      rgba(241, 245, 249, 0.2) 0px,
+      rgba(241, 245, 249, 0.2) 2px,
+      transparent 2px,
+      transparent 6px
+    );
+}
+
+.cbt-launcher-cell.is-current::after {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 12px solid rgba(250, 204, 21, 0.95);
+  filter: drop-shadow(0 0 4px rgba(250, 204, 21, 0.5));
+}
+
+.cbt-current-tag {
+  align-self: flex-start;
+  margin-top: 2px;
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #111827;
+  background: rgba(250, 204, 21, 0.92);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+
+@keyframes cbt-rocket-ignite {
+  from {
+    border-color: rgba(203, 213, 225, 0.72);
+    box-shadow: 0 4px 8px rgba(2, 6, 23, 0.45), inset 0 0 0 1px rgba(243, 244, 246, 0.16);
+  }
+  to {
+    border-color: rgba(250, 204, 21, 0.95);
+    box-shadow: 0 8px 18px rgba(245, 158, 11, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  }
+}
+
+.cbt-launcher-panel {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #e5e7eb;
+  padding: 0.22rem 0.38rem;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(15, 23, 42, 0.66);
+}
+
+.cbt-launcher-panel-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.55);
+}
+
+.cbt-launcher-drum {
+  display: none;
+}
+
+.cbt-thought-missile {
+  display: none;
+}
+
+.cbt-thought-missile-tag {
+  display: none;
+}
+
+.cbt-thought-missile-text {
+  display: none;
+}
+
+.cbt-launcher-drum-mark {
+  display: none;
+}
+
+.cbt-launcher-drum.is-spinning {
+  display: none;
+}
+
+@keyframes cbt-drum-spin {
+  from { transform: translateX(-50%) rotate(0deg); }
+  to { transform: translateX(-50%) rotate(220deg); }
+}
+
+.cbt-launch-flight {
+  position: absolute;
+  left: 50%;
+  bottom: 84px;
+  width: min(62%, 300px);
+  transform: translateX(-50%) translateY(0);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 8;
+}
+
+/* במצב וידאו: מסובבים רק את הטיל (השכבה הסינתטית), בלי להזיז את הווידאו ברקע */
+.cbt-launch-flight-aim-wrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 8;
+  transform-origin: 72% 100%;
+  will-change: transform;
+}
+
+.cbt-launch-flight.is-hostile {
+  left: 12%;
+  bottom: 122px;
+  width: min(54%, 250px);
+  transform: translateX(0) translateY(0);
+}
+
+.cbt-launch-flight.is-active {
+  animation: cbt-launch-flight-rise 1.05s cubic-bezier(0.18, 0.82, 0.25, 1) forwards;
+}
+
+.cbt-launch-flight.is-active.is-hostile {
+  animation: cbt-launch-flight-toward-player 0.82s cubic-bezier(0.18, 0.92, 0.25, 1) forwards;
+}
+
+.cbt-launch-flight.is-active.is-hostile .cbt-launch-body {
+  transform-origin: 50% 50%;
+  transform: rotate(90deg);
+}
+
+.cbt-launch-flight.is-active.is-hostile::after {
+  content: '';
+  position: absolute;
+  left: 298px;
+  top: 214px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(254, 240, 138, 0.95) 0%, rgba(249, 115, 22, 0.65) 45%, rgba(127, 29, 29, 0) 100%);
+  box-shadow: 0 0 14px rgba(249, 115, 22, 0.58);
+  opacity: 0;
+  animation: cbt-hostile-impact-dot 0.34s ease-out 0.7s forwards;
+}
+
+.cbt-launch-muzzle-flash {
+  position: absolute;
+  left: 50%;
+  bottom: -10px;
+  width: 92px;
+  height: 92px;
+  margin-left: -46px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(254, 249, 195, 0.96) 0%, rgba(251, 191, 36, 0.8) 30%, rgba(245, 158, 11, 0.22) 66%, transparent 100%);
+  opacity: 0;
+}
+
+.cbt-launch-flight.is-active .cbt-launch-muzzle-flash {
+  animation: cbt-launch-muzzle-flash 0.26s ease-out;
+}
+
+.cbt-launch-body {
+  border-radius: 12px 12px 20px 20px;
+  border: 2px solid rgba(254, 240, 138, 0.9);
+  background: linear-gradient(180deg, rgba(252, 211, 77, 0.92), rgba(234, 179, 8, 0.95));
+  padding: 0.3rem 0.45rem;
+  box-shadow:
+    0 0 20px rgba(251, 191, 36, 0.5),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.cbt-launch-body-text {
+  display: block;
+  color: #0f172a;
+  font-size: 0.74rem;
+  line-height: 1.25;
+  font-weight: 800;
+  text-align: center;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cbt-launch-flame {
+  position: absolute;
+  left: 50%;
+  bottom: -34px;
+  width: 18px;
+  height: 44px;
+  margin-left: -9px;
+  border-radius: 50% 50% 60% 60%;
+  background:
+    radial-gradient(circle at 50% 14%, rgba(255, 255, 255, 0.95) 0 20%, transparent 38%),
+    linear-gradient(180deg, #fef3c7 0%, #f59e0b 46%, rgba(220, 38, 38, 0.85) 100%);
+  filter: blur(0.4px);
+  animation: cbt-launch-flame-flicker 0.1s ease-in-out infinite alternate;
+}
+
+.cbt-launch-pressure-wave {
+  position: absolute;
+  left: 50%;
+  bottom: -14px;
+  width: 18px;
+  height: 18px;
+  margin-left: -9px;
+  border-radius: 50%;
+  border: 2px solid rgba(203, 213, 225, 0.7);
+  opacity: 0;
+}
+
+.cbt-launch-flight.is-active .cbt-launch-pressure-wave {
+  animation: cbt-pressure-wave 0.5s ease-out;
+}
+
+.cbt-launch-smoke {
+  position: absolute;
+  left: 50%;
+  bottom: -20px;
+  width: 88px;
+  height: 56px;
+  margin-left: -44px;
+}
+
+.cbt-launch-smoke span {
+  position: absolute;
+  bottom: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(226, 232, 240, 0.75) 0%, rgba(148, 163, 184, 0.1) 75%);
+  animation: cbt-launch-smoke-rise 0.55s ease-out forwards;
+}
+
+.cbt-launch-smoke span:nth-child(1) { left: 8px; animation-delay: 0s; }
+.cbt-launch-smoke span:nth-child(2) { left: 30px; animation-delay: 0.05s; }
+.cbt-launch-smoke span:nth-child(3) { left: 52px; animation-delay: 0.09s; }
+.cbt-launch-smoke span:nth-child(4) { left: 20px; animation-delay: 0.12s; width: 28px; height: 28px; }
+.cbt-launch-smoke span:nth-child(5) { left: 44px; animation-delay: 0.15s; width: 30px; height: 30px; }
+
+@keyframes cbt-launch-flight-rise {
+  0% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) rotate(-4deg) scale(0.95);
+  }
+  22% {
+    opacity: 1;
+    transform: translateX(-46%) translateY(-20px) rotate(-12deg) scale(1);
+  }
+  56% {
+    opacity: 0.94;
+    transform: translateX(-36%) translateY(-110px) rotate(-22deg) scale(0.95);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-26%) translateY(-260px) rotate(-30deg) scale(0.84);
+  }
+}
+
+@keyframes cbt-launch-flight-toward-player {
+  0% {
+    opacity: 1;
+    transform: translateX(0) translateY(0) rotate(0deg) scale(0.88);
+    filter: brightness(1);
+  }
+  28% {
+    opacity: 1;
+    transform: translateX(72px) translateY(-70px) rotate(6deg) scale(0.96);
+    filter: brightness(1.08);
+  }
+  62% {
+    opacity: 1;
+    transform: translateX(164px) translateY(-54px) rotate(14deg) scale(1);
+    filter: brightness(1.12);
+  }
+  84% {
+    opacity: 0.96;
+    transform: translateX(244px) translateY(8px) rotate(24deg) scale(0.98);
+    filter: brightness(1.16);
+  }
+  100% {
+    opacity: 0.28;
+    transform: translateX(292px) translateY(116px) rotate(38deg) scale(0.78);
+    filter: brightness(0.86);
+  }
+}
+
+@keyframes cbt-hostile-impact-dot {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  35% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.55);
+  }
+}
+
+@keyframes cbt-launch-muzzle-flash {
+  0% { opacity: 0; transform: scale(0.3); }
+  25% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+
+@keyframes cbt-launch-flame-flicker {
+  from { transform: scaleY(1) scaleX(1); opacity: 0.92; }
+  to { transform: scaleY(1.12) scaleX(0.9); opacity: 1; }
+}
+
+@keyframes cbt-launch-smoke-rise {
+  0% {
+    transform: translateY(0) scale(0.65);
+    opacity: 0.65;
+  }
+  100% {
+    transform: translateY(22px) scale(1.35);
+    opacity: 0;
+  }
+}
+
+@keyframes cbt-pressure-wave {
+  0% { opacity: 0.75; transform: scale(0.6); }
+  100% { opacity: 0; transform: scale(5.2); }
+}
+
+.cbt-launcher-tube-spin {
+  animation: cbt-launcher-spin-stop 0.45s ease-out;
+}
+
+.cbt-launcher-tube-active-spin .cbt-launcher-photo {
+  animation: cbt-launcher-photo-spin 0.52s ease-in-out;
+}
+
+.cbt-launcher-tube-settling .cbt-launcher-photo-wrap {
+  animation: cbt-launcher-heavy-settle 0.32s ease-out;
+}
+
+@keyframes cbt-launcher-spin-stop {
+  0% { transform: rotateY(0deg) scale(0.98); }
+  55% { transform: rotateY(35deg) scale(1); }
+  100% { transform: rotateY(0deg) scale(1); }
+}
+
+@keyframes cbt-launcher-photo-spin {
+  0% { transform: scale(1) rotate(-1.5deg); filter: blur(0px); }
+  45% { transform: scale(1.02) rotate(1.8deg); filter: blur(0.4px); }
+  100% { transform: scale(1) rotate(0deg); filter: blur(0px); }
+}
+
+@keyframes cbt-launcher-heavy-settle {
+  0% { transform: translateY(0) rotate(0deg); }
+  40% { transform: translateY(2px) rotate(-0.45deg); }
+  70% { transform: translateY(-1px) rotate(0.2deg); }
+  100% { transform: translateY(0) rotate(0deg); }
 }
 
 .cbt-choice {
@@ -661,12 +3092,40 @@ body {
   font-size: 0.8rem;
   font-weight: 700;
   color: #a5b4fc;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.25rem;
 }
 
 .cbt-choice-text {
-  font-size: 0.95rem;
+  font-size: 1rem;
   line-height: 1.45;
+  margin: 0;
+  color: #f8fafc;
+}
+
+.cbt-launcher-missile-label {
+  display: block;
+  font-size: 0.78rem;
+  color: #cbd5e1;
+  margin-bottom: 0.28rem;
+}
+
+.cbt-launcher-slot-index {
+  display: inline-block;
+  margin-top: 0.6rem;
+  font-size: 0.78rem;
+  color: #93c5fd;
+}
+
+.cbt-launcher-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+}
+
+.cbt-spin-btn,
+.cbt-launch-now-btn {
+  margin: 0;
+  width: 100%;
 }
 
 .cbt-feedback {
@@ -715,7 +3174,94 @@ body {
   position: relative;
 }
 
-.cbt-intercept-crash .cbt-choices .cbt-choice,
+.cbt-play.cbt-play--compact-bottom {
+  display: flex;
+  flex-direction: column;
+  min-height: min(100dvh - 96px, 940px);
+}
+
+.cbt-play-combat-stack {
+  margin-top: auto;
+  width: 100%;
+}
+
+.cbt-combat-freeze-float {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  flex-wrap: wrap;
+  max-width: calc(100% - 12px);
+  pointer-events: auto;
+}
+
+.cbt-combat-freeze-float .cbt-combat-freeze-btn {
+  font-size: 0.72rem;
+  padding: 0.3rem 0.5rem;
+  line-height: 1.2;
+}
+
+.cbt-combat-freeze-float-kbd {
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 5px;
+  padding: 0.15rem 0.4rem;
+  font-family: ui-monospace, monospace;
+}
+
+.cbt-combat-freeze-float-hint {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
+}
+
+.cbt-combat-freeze-btn.is-frozen {
+  border-color: rgba(56, 189, 248, 0.65);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35);
+}
+
+.cbt-play--compact-bottom .cbt-photo-wrap--enemy-sky-only {
+  height: min(42vh, 420px);
+  min-height: 180px;
+}
+
+.cbt-launching .cbt-launcher-photo-wrap {
+  animation: cbt-camera-kick 0.22s ease-out;
+}
+
+.cbt-launching .cbt-launcher-photo-wrap.cbt-photo-wrap--enemy-sky-only {
+  animation: none;
+}
+
+.cbt-launching .cbt-launcher-bay {
+  animation: cbt-launcher-recoil 0.36s ease-out;
+}
+
+.cbt-launching .cbt-photo-wrap--enemy-sky-only .cbt-launcher-bay {
+  animation: none;
+}
+
+@keyframes cbt-camera-kick {
+  0% { transform: translateY(0) scale(1); }
+  40% { transform: translateY(2px) scale(0.996); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes cbt-launcher-recoil {
+  0% { transform: rotateX(17deg) rotateZ(-16deg) translateY(0); }
+  45% { transform: rotateX(17deg) rotateZ(-14.5deg) translateY(4px); }
+  100% { transform: rotateX(17deg) rotateZ(-16deg) translateY(0); }
+}
+
+.cbt-intercept-crash .cbt-launcher-selector,
 .cbt-intercept-crash .cbt-custom-input,
 .cbt-intercept-crash .cbt-fire-custom {
   pointer-events: none;
@@ -856,6 +3402,50 @@ body {
   transform: none;
 }
 
+@media (max-width: 640px) {
+  .cbt-launcher-photo-wrap {
+    height: 300px;
+  }
+
+  .cbt-play--compact-bottom .cbt-photo-wrap--enemy-sky-only {
+    height: min(36vh, 340px);
+    min-height: 160px;
+  }
+
+  .cbt-photo-wrap--enemy-sky-only {
+    height: min(calc(100dvh - 148px), 880px);
+    min-height: min(56dvh, 360px);
+  }
+
+  .cbt-launcher-bay {
+    height: 190px;
+  }
+
+  .cbt-launcher-deck-aim:not(.cbt-launcher-deck-aim--combat) {
+    top: 88px;
+    width: min(80%, 300px);
+  }
+
+  .cbt-photo-wrap--enemy-sky-only .cbt-launcher-deck-aim {
+    top: auto;
+    bottom: 0;
+    width: min(280px, 92vw);
+    transform: translateX(-50%) scale(0.52);
+  }
+
+  .cbt-launcher-deck-aim--combat {
+    width: min(58%, 300px);
+  }
+
+  .cbt-launch-flight {
+    width: min(74%, 260px);
+  }
+
+  .cbt-launcher-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
 @keyframes cbt-shake {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-6px); }
@@ -868,17 +3458,36 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cbt-sky-stars,
-  .cbt-rocket-group,
-  .cbt-rocket-flame-outer,
-  .cbt-rocket-flame-inner,
-  .cbt-rocket-trail,
-  .cbt-dome-svg {
+  .cbt-launcher-turntable-pivot {
+    transition: none;
+  }
+  .cbt-scene-enemy-rocket {
+    animation: none !important;
+    transform: translate(-50%, -50%) translate3d(58vmin, 48vmin, 0) scale(0.55) rotate(108deg);
+    opacity: 1;
+    filter:
+      blur(0)
+      drop-shadow(0 0 6px rgba(255, 255, 255, 0.75))
+      drop-shadow(0 0 16px rgba(186, 230, 253, 0.4))
+      drop-shadow(0 0 12px rgba(220, 38, 38, 0.85))
+      drop-shadow(0 0 6px rgba(251, 146, 60, 0.65));
+  }
+  .cbt-scene-enemy-rocket::before,
+  .cbt-scene-enemy-rocket::after {
+    animation: none !important;
+    opacity: 0.65;
+  }
+  .cbt-enemy-meteor-sparkle,
+  .cbt-enemy-meteor-streak-svg {
     animation: none !important;
   }
-  .cbt-rocket-group {
-    transform: none;
-    opacity: 1;
+  .cbt-enemy-meteor-streak-svg {
+    opacity: 0.85;
+  }
+  .cbt-in-frame-hit *,
+  .cbt-in-frame-hit-caption {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
   .cbt-battle-fx *,
   .cbt-crash-fx *,

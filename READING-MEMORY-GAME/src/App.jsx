@@ -212,14 +212,28 @@ function saveLastPlayedGameOnly(gameId) {
   }
 }
 
+/** ברירות מחדל כשאין משתני Netlify — אותו דומיין (משחקים תחת /ndfa/, /ronit/, …). */
+const DEFAULT_EXTERNAL_GAME_BASE = {
+  VITE_MATH_ENGLISH_GAME_URL: '/math-english/',
+  VITE_NDFA_GAME_URL: '/ndfa/',
+  VITE_RONIT_GAME_URL: '/ronit/',
+  VITE_CBT_GAME_URL: '/cbt/'
+}
+
+function externalGameBaseUrl(envKey) {
+  const fromEnv = import.meta.env[envKey]
+  if (fromEnv && typeof fromEnv === 'string' && fromEnv.trim()) return fromEnv.trim()
+  const fallback = DEFAULT_EXTERNAL_GAME_BASE[envKey]
+  return typeof fallback === 'string' ? fallback : ''
+}
+
 /** כתובת מלאה למשחק חיצוני (מוכן ל-<a href>) או null אם חסר env / לא נבחר גיל.
  *  גיל מהרשימה בכרטיס (ageGroups) משמש רק לאזהרת UI; הפרמטר age_group בכתובת הוא הגיל שנבחר בתפריט. */
 function buildExternalGameLaunchUrl(game, selectedAgeGroup, emailVal, nicknameVal) {
   if (game.launchType !== 'external' || !game.urlEnvKey) return null
   if (!selectedAgeGroup) return null
-  const base = import.meta.env[game.urlEnvKey]
-  if (!base || typeof base !== 'string') return null
-  const baseStr = base.trim()
+  const baseStr = externalGameBaseUrl(game.urlEnvKey)
+  if (!baseStr) return null
   try {
     const parsed = baseStr.startsWith('/')
       ? new URL(baseStr, typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5175')
@@ -878,25 +892,7 @@ function App() {
     }
     const launchUrl = buildExternalGameLaunchUrl(game, selectedAgeGroup, em, nick)
     if (!launchUrl) {
-      const externalUrl = import.meta.env[game.urlEnvKey]
-      if (!externalUrl || typeof externalUrl !== 'string') {
-        setError(`חסר ${game.urlEnvKey}. יש להגדיר משתנה סביבה כדי לפתוח את ${game.title}.`)
-        return
-      }
-      try {
-        const u = externalUrl.trim()
-        if (!u) throw new Error('empty')
-        if (u.startsWith('/')) {
-          if (typeof window === 'undefined') throw new Error('no window')
-          void new URL(u, window.location.origin)
-        } else {
-          void new URL(u)
-        }
-      } catch {
-        setError(`כתובת לא תקינה ב-${game.urlEnvKey}`)
-        return
-      }
-      setError(`לא ניתן לבנות כתובת כניסה ל«${game.title}». נא לבחור קבוצת גיל.`)
+      setError(`לא ניתן לפתוח את «${game.title}». ודאו גיל, אימייל ושם; אם זה משחק חיצוני — שהנתיב קיים באתר (ברירת מחדל: /ndfa/, /ronit/, /cbt/).`)
       return
     }
     setLastPlayedGameId(game.id)

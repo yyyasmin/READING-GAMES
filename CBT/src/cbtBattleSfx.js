@@ -5,6 +5,9 @@
 
 let ctxRef = null
 
+/** חייב להתאים ל־--cbt-enemy-flight-duration ב־index.css (מחזור אנימציית טיל האויב). */
+export const ENEMY_APPROACH_CYCLE_SEC = 28
+
 /** קריאה מ-startGame כדי לאפשר השמעה אחרי לחיצת משתמש */
 export function resumeBattleAudio() {
   getCtx()
@@ -29,6 +32,39 @@ function noiseBuffer(ctx, seconds) {
     d[i] = Math.random() * 2 - 1
   }
   return buf
+}
+
+/** מנוע / להב בשיגור (מיד בלחיצת «שגר») */
+export function playLaunchIgnition() {
+  const ctx = getCtx()
+  if (!ctx) return
+  const t0 = ctx.currentTime
+  const crackle = ctx.createBufferSource()
+  crackle.buffer = noiseBuffer(ctx, 0.12)
+  const bp = ctx.createBiquadFilter()
+  bp.type = 'highpass'
+  bp.frequency.setValueAtTime(400, t0)
+  const g = ctx.createGain()
+  g.gain.setValueAtTime(0, t0)
+  g.gain.linearRampToValueAtTime(0.32, t0 + 0.02)
+  g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.14)
+  crackle.connect(bp)
+  bp.connect(g)
+  g.connect(ctx.destination)
+  crackle.start(t0)
+  crackle.stop(t0 + 0.16)
+
+  const osc = ctx.createOscillator()
+  osc.type = 'triangle'
+  osc.frequency.setValueAtTime(95, t0)
+  osc.frequency.exponentialRampToValueAtTime(220, t0 + 0.08)
+  const og = ctx.createGain()
+  og.gain.setValueAtTime(0.12, t0)
+  og.gain.exponentialRampToValueAtTime(0.001, t0 + 0.12)
+  osc.connect(og)
+  og.connect(ctx.destination)
+  osc.start(t0)
+  osc.stop(t0 + 0.14)
 }
 
 /** מיירט עולה – לפני פגיעה */
@@ -150,4 +186,118 @@ export function playFallTension() {
   g.connect(ctx.destination)
   osc.start(t0)
   osc.stop(t0 + 0.4)
+}
+
+/**
+ * רשרש טיל מתקרב – נשמע מוקדם (מרחוק) לפני שהטיל בולט על המסך; חוזר כל מחזור אנימציה.
+ * מחזיר { stop } לכיבוי ודעיכה קצרה.
+ */
+export function startEnemyMissileApproachAmbient() {
+  const ctx = getCtx()
+  if (!ctx) {
+    return { stop: () => {} }
+  }
+
+  const master = ctx.createGain()
+  master.gain.setValueAtTime(0, ctx.currentTime)
+  master.gain.linearRampToValueAtTime(1, ctx.currentTime + 0.35)
+  master.connect(ctx.destination)
+
+  let stopped = false
+  let nextTimerId = null
+
+  const scheduleNext = () => {
+    if (stopped) return
+    nextTimerId = window.setTimeout(runCycle, ENEMY_APPROACH_CYCLE_SEC * 1000)
+  }
+
+  function runCycle() {
+    if (stopped) return
+    nextTimerId = null
+
+    const t0 = ctx.currentTime
+    const D = ENEMY_APPROACH_CYCLE_SEC
+    const tEnd = t0 + D
+
+    const hiss = ctx.createBufferSource()
+    hiss.buffer = noiseBuffer(ctx, 1.8)
+    hiss.loop = true
+    const hissBp = ctx.createBiquadFilter()
+    hissBp.type = 'bandpass'
+    hissBp.Q.value = 0.85
+    hissBp.frequency.setValueAtTime(220, t0)
+    hissBp.frequency.exponentialRampToValueAtTime(480, t0 + D * 0.35)
+    hissBp.frequency.exponentialRampToValueAtTime(1400, t0 + D * 0.72)
+    hissBp.frequency.exponentialRampToValueAtTime(2400, t0 + D * 0.92)
+    const hissG = ctx.createGain()
+    hissG.gain.setValueAtTime(0, t0)
+    hissG.gain.linearRampToValueAtTime(0.09, t0 + 1.2)
+    hissG.gain.linearRampToValueAtTime(0.14, t0 + 6)
+    hissG.gain.linearRampToValueAtTime(0.22, t0 + 14)
+    hissG.gain.linearRampToValueAtTime(0.28, t0 + 22)
+    hissG.gain.linearRampToValueAtTime(0.26, t0 + D * 0.93)
+    hissG.gain.exponentialRampToValueAtTime(0.001, tEnd - 0.05)
+    hiss.connect(hissBp)
+    hissBp.connect(hissG)
+    hissG.connect(master)
+    hiss.start(t0)
+    hiss.stop(tEnd)
+
+    const rumble = ctx.createOscillator()
+    rumble.type = 'sawtooth'
+    rumble.frequency.setValueAtTime(38, t0)
+    rumble.frequency.exponentialRampToValueAtTime(72, t0 + D * 0.4)
+    rumble.frequency.exponentialRampToValueAtTime(118, t0 + D * 0.78)
+    const rumbleLp = ctx.createBiquadFilter()
+    rumbleLp.type = 'lowpass'
+    rumbleLp.frequency.setValueAtTime(160, t0)
+    rumbleLp.frequency.exponentialRampToValueAtTime(420, t0 + D * 0.65)
+    const rumbleG = ctx.createGain()
+    rumbleG.gain.setValueAtTime(0, t0)
+    rumbleG.gain.linearRampToValueAtTime(0.05, t0 + 0.9)
+    rumbleG.gain.linearRampToValueAtTime(0.09, t0 + 8)
+    rumbleG.gain.linearRampToValueAtTime(0.14, t0 + 20)
+    rumbleG.gain.exponentialRampToValueAtTime(0.001, tEnd - 0.08)
+    rumble.connect(rumbleLp)
+    rumbleLp.connect(rumbleG)
+    rumbleG.connect(master)
+    rumble.start(t0)
+    rumble.stop(tEnd)
+
+    const wind = ctx.createBufferSource()
+    wind.buffer = noiseBuffer(ctx, 2.2)
+    wind.loop = true
+    const windLp = ctx.createBiquadFilter()
+    windLp.type = 'lowpass'
+    windLp.frequency.setValueAtTime(320, t0)
+    windLp.frequency.exponentialRampToValueAtTime(2200, t0 + D * 0.88)
+    const windG = ctx.createGain()
+    windG.gain.setValueAtTime(0, t0)
+    windG.gain.linearRampToValueAtTime(0.035, t0 + 2)
+    windG.gain.linearRampToValueAtTime(0.07, t0 + 12)
+    windG.gain.exponentialRampToValueAtTime(0.001, tEnd - 0.06)
+    wind.connect(windLp)
+    windLp.connect(windG)
+    windG.connect(master)
+    wind.start(t0)
+    wind.stop(tEnd)
+
+    scheduleNext()
+  }
+
+  runCycle()
+
+  return {
+    stop: () => {
+      stopped = true
+      if (nextTimerId != null) {
+        window.clearTimeout(nextTimerId)
+        nextTimerId = null
+      }
+      const t = ctx.currentTime
+      master.gain.cancelScheduledValues(t)
+      master.gain.setValueAtTime(master.gain.value, t)
+      master.gain.exponentialRampToValueAtTime(0.001, t + 0.2)
+    }
+  }
 }

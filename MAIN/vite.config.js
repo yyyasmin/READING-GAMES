@@ -1,7 +1,7 @@
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -23,9 +23,9 @@ function attachCbtProxyFriendlyError(proxy) {
           'אין קשר בין פורט 5000 לבין 5176.</p>' +
           '<p><strong>מה להריץ (פיתוח מקומי):</strong></p>' +
           '<ol style="margin:0.5rem 0 1rem 1.2rem;line-height:1.65">' +
-          '<li><code>cd backend</code> → <code>python app.py</code> (API + פרוקסי <code>/api</code> מה־CBT)</li>' +
-          '<li><code>cd CBT</code> → <code>npm run dev</code> — עד שמופיע <code>5176</code> (למשל <code>http://localhost:5176/cbt/</code>)</li>' +
-          '<li>READING כאן כבר עם <code>npm run dev</code> — ואז רענון הדף</li>' +
+          '<li><strong>הכי פשוט:</strong> טרמינל אחד בתיקיית <code>MAIN</code> → <code>npm run dev:with-cbt</code> (מריץ גם את MAIN וגם את CBT על 5176).</li>' +
+          '<li><code>cd backend</code> → <code>python app.py</code> (API לשמירת נתונים מהמשחק)</li>' +
+          '<li>או בנפרד: <code>cd CBT</code> → <code>npm run dev</code>, ובמקביל <code>cd MAIN</code> → <code>npm run dev</code></li>' +
           '</ol>' +
           '<p><small>במקום שגיאת 500 שקטה של Vite, הוצגה כאן תשובת 502 עם הסבר. פרט טכני: ' +
           detail +
@@ -42,16 +42,19 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '@math-games': path.resolve(__dirname, '../MATH-GAMES/src')
+      '@math-games': path.resolve(__dirname, '../MATH-GAMES/src'),
+      react: path.resolve(__dirname, 'node_modules/react'),
+      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+      'socket.io-client': path.resolve(__dirname, 'node_modules/socket.io-client')
     }
   },
   server: {
-    port: 5175,
+    port: 5177,
     host: true,
     proxy: {
       '/api': { target: 'http://127.0.0.1:5000', changeOrigin: true },
       '/socket.io': { target: 'http://127.0.0.1:5000', ws: true },
-      /* CBT – אותו מקור כמו READING (5175); חובה שגם CBT רץ (5176) */
+      /* CBT – אותו מקור כמו READING (5177); חובה שגם CBT רץ (5176) */
       '/cbt': {
         target: 'http://127.0.0.1:5176',
         changeOrigin: true,

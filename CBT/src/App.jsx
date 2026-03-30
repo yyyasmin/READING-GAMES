@@ -3,18 +3,39 @@ import {
   ROUNDS,
   STORY_TITLE,
   TAGLINE,
-  INTERCEPTOR_LABEL,
   ROUND_TIME_MS,
   normalizeThought,
   isOwnInterceptorWording
 } from './cbtRounds.js'
 import {
   resumeBattleAudio,
+  playLaunchIgnition,
   playInterceptorWhoosh,
   playExplosionSuccess,
   playExplosionFail,
-  playFallTension
+  playFallTension,
+  startEnemyMissileApproachAmbient
 } from './cbtBattleSfx.js'
+
+const RENDER_BACKEND = 'https://ndfa-memory-match-game.onrender.com'
+const COMBAT_VIDEO_SRC = `${import.meta.env.BASE_URL}videos/rocket%20flight.mp4`
+/** כש־true — וידאו משגר אמיתי מתחת לשכבת טיל האויב (קובץ: public/videos/rocket flight.mp4).
+ * במצב “משגר אמיתי בלי רקע” חייבים להשאיר את זה `false`, כי אי אפשר לבודד משגר מתוך פריים שטוח בלי אלפא/שכבות. */
+const CBT_SHOW_LAUNCHER_COMBAT_VIDEO = false
+/** פיתוח: true — משתיק רשרש טיל מתקרב (להחזיר false לפני שחרור / בדיקת חוויית משחק). */
+const CBT_DEV_DISABLE_ENEMY_APPROACH_SFX = true
+/** Local: relative /api → Vite proxy. Production (Netlify etc.): full URL to Render. */
+function apiUrl(apiPath) {
+  const path = apiPath.startsWith('/') ? apiPath : `/${apiPath}`
+  if (typeof window === 'undefined') return path
+  const h = window.location.hostname
+  if (h === 'localhost' || h === '127.0.0.1') return path
+  const fromEnv = import.meta.env.VITE_BACKEND_URL
+  if (fromEnv && typeof fromEnv === 'string' && (fromEnv.startsWith('http://') || fromEnv.startsWith('https://'))) {
+    return `${fromEnv.replace(/\/$/, '')}${path}`
+  }
+  return `${RENDER_BACKEND.replace(/\/$/, '')}${path}`
+}
 
 function shuffle(arr) {
   const a = [...arr]
@@ -25,12 +46,78 @@ function shuffle(arr) {
   return a
 }
 
-function feedbackClass(feedback) {
-  if (!feedback) return ''
-  if (feedback.includes('יירוט מוצלח')) return 'cbt-feedback-good'
-  if (feedback.includes('פג הזמן')) return 'cbt-feedback-timeout'
-  return 'cbt-feedback-bad'
+/** הפרש זווית קצר בין כיוון משגר לכיוון לטיל (מעלות). */
+function shortestAngleDeg(fromDeg, toDeg) {
+  let d = (((toDeg - fromDeg) % 360) + 360) % 360
+  if (d > 180) d -= 360
+  return d
 }
+
+/** מעלות בטווח [0, 360) — סיבוב מלא; ב-CSS מוחל rotateZ (מישור המסך) כדי שלא ייראה כמו כיווץ של rotateY */
+function normalizeAngle360(deg) {
+  let a = deg % 360
+  if (a < 0) a += 360
+  return a
+}
+
+/** כמה שלבי זום לטקסט מחשבה על הארגז (לחיצה = +1, אחרי המקסימום חוזר ל־0) */
+const CBT_CRATE_ZOOM_MAX = 10
+
+const CBT_LAUNCHER_AIM_TOLERANCE_DEG = 22
+const CBT_LAUNCHER_PITCH_TOLERANCE_DEG = 14
+const CBT_LAUNCHER_PITCH_MIN = -34
+const CBT_LAUNCHER_PITCH_MAX = 34
+
+function clampLauncherPitchDeg(deg) {
+  return Math.min(CBT_LAUNCHER_PITCH_MAX, Math.max(CBT_LAUNCHER_PITCH_MIN, deg))
+}
+
+/** יואו לפי מיקום X בלבד על מסגרת הקרב: 0° = קצה שמאל, 360° = קצה ימין — רציף, בלי "חזרה לאמצע" של atan2 מול ציר בפינה */
+function horizontalScreenYawDeg(wr, clientX) {
+  const t = (clientX - wr.left) / Math.max(wr.width, 1)
+  const clamped = Math.max(0, Math.min(1, t))
+  return normalizeAngle360(clamped * 360)
+}
+
+/** עומק: למטה במסגרת = אל השחקן (חיובי), למעלה = פנימה למסך (שלילי) */
+function pitchDegFromClientY(wr, clientY) {
+  const mid = wr.top + wr.height * 0.5
+  const half = Math.max(wr.height * 0.5, 1)
+  const ny = (clientY - mid) / half
+  const clamped = Math.max(-1, Math.min(1, ny))
+  return clampLauncherPitchDeg(clamped * CBT_LAUNCHER_PITCH_MAX)
+}
+
+/** מסלול מיירט במרחב הפריים – מבסיס המשגר אל מרכז טיל האויב, או לכיוון השחקן (מיירט «עוין»). */
+function computeLaunchFlightWorldStyle(wrapEl, deckEl, rocketEl, flyTowardPlayer) {
+  if (!wrapEl || !deckEl || !rocketEl) return null
+  const wr = wrapEl.getBoundingClientRect()
+  const dr = deckEl.getBoundingClientRect()
+  const rr = rocketEl.getBoundingClientRect()
+  const mx = dr.left + dr.width * 0.5
+  const my = dr.top + dr.height * 0.88
+  let tx = rr.left + rr.width * 0.5
+  let ty = rr.top + rr.height * 0.45
+  if (flyTowardPlayer) {
+    tx = wr.left + wr.width * 0.5
+    ty = wr.bottom - Math.max(24, wr.height * 0.04)
+  }
+  const dx = tx - mx
+  const dy = ty - my
+  const leftPct = ((mx - wr.left) / Math.max(wr.width, 1)) * 100
+  const topPct = ((my - wr.top) / Math.max(wr.height, 1)) * 100
+  const angleDeg = (Math.atan2(dx, -dy) * 180) / Math.PI
+  return {
+    left: `${leftPct}%`,
+    top: `${topPct}%`,
+    '--cbt-launch-dx': `${dx}px`,
+    '--cbt-launch-dy': `${dy}px`,
+    '--cbt-launch-angle': `${angleDeg}deg`
+  }
+}
+
+/** משך אנימציית טיסת המיירט במסך (לפני כיבוי שכבת השיגור) */
+const CBT_LAUNCH_FLIGHT_VISUAL_MS = 1000
 
 export default function App() {
   const rid = useId().replace(/:/g, '')
@@ -48,6 +135,27 @@ export default function App() {
   const [secondsLeft, setSecondsLeft] = useState(0)
   const [interceptCrash, setInterceptCrash] = useState(false)
   const [customInterceptorText, setCustomInterceptorText] = useState('')
+  const [launcherChoiceIndex, setLauncherChoiceIndex] = useState(0)
+  const [launcherSpinPulse, setLauncherSpinPulse] = useState(0)
+  const [isLauncherSpinning, setIsLauncherSpinning] = useState(false)
+  const [isLauncherSettling, setIsLauncherSettling] = useState(false)
+  const [launcherLaunchFx, setLauncherLaunchFx] = useState({ active: false, token: 0, thought: '', hostile: false })
+  const [videoLoadError, setVideoLoadError] = useState('')
+  const [launcherAimDeg, setLauncherAimDeg] = useState(0)
+  const [launcherPitchDeg, setLauncherPitchDeg] = useState(0)
+  const [combatFrozen, setCombatFrozen] = useState(false)
+  const [crateThoughtZoomStep, setCrateThoughtZoomStep] = useState(0)
+  const [launchFlightStyle, setLaunchFlightStyle] = useState(undefined)
+
+  const combatFrameRef = useRef(null)
+  const launchDeckAimRef = useRef(null)
+  const enemyRocketRef = useRef(null)
+  const missileBearingRef = useRef(0)
+  const missilePitchRef = useRef(0)
+  const launcherAimDegRef = useRef(0)
+  const launcherPitchDegRef = useRef(0)
+  const aimDragRef = useRef(false)
+  const aimRafRef = useRef(0)
 
   const urlParams = useMemo(() => {
     if (typeof window === 'undefined') {
@@ -62,8 +170,28 @@ export default function App() {
   }, [])
 
   const timeoutFiredRef = useRef(false)
+  const roundDeadlineRef = useRef(Date.now())
+  const freezeRemainingMsRef = useRef(0)
+  const combatFrozenRef = useRef(false)
   const roundIndexRef = useRef(roundIndex)
+  const launcherSpinTimerRef = useRef(null)
+  const launcherSettleTimerRef = useRef(null)
   roundIndexRef.current = roundIndex
+  launcherAimDegRef.current = launcherAimDeg
+  launcherPitchDegRef.current = launcherPitchDeg
+  combatFrozenRef.current = combatFrozen
+
+  const toggleCombatFreeze = useCallback(() => {
+    if (roundBlocking || launcherLaunchFx.active) return
+    setCombatFrozen((was) => {
+      if (!was) {
+        freezeRemainingMsRef.current = Math.max(0, roundDeadlineRef.current - Date.now())
+      } else {
+        roundDeadlineRef.current = Date.now() + freezeRemainingMsRef.current
+      }
+      return !was
+    })
+  }, [roundBlocking, launcherLaunchFx.active])
 
   const current = ROUNDS[roundIndex]
   const choices = useMemo(() => {
@@ -72,6 +200,7 @@ export default function App() {
     const picked = shuffle(others).slice(0, 2)
     return shuffle([current.balancedThought, ...picked])
   }, [current])
+  const activeLauncherThought = choices[launcherChoiceIndex] || ''
 
   const advanceAfterDelay = useCallback((delayMs) => {
     setTimeout(() => {
@@ -86,6 +215,7 @@ export default function App() {
       setRoundBlocking(false)
       setInterceptCrash(false)
       setCustomInterceptorText('')
+      setLauncherLaunchFx({ active: false, token: 0, thought: '', hostile: false })
       timeoutFiredRef.current = false
     }, delayMs)
   }, [])
@@ -97,6 +227,7 @@ export default function App() {
     setScore((s) => s - 1)
     setFeedback('פג הזמן – המיירט נפל והתפוצץ. איבדת נקודה.')
     setInterceptCrash(true)
+    setLauncherLaunchFx({ active: false, token: 0, thought: '', hostile: false })
     setWrongShake(true)
     setTimeout(() => setWrongShake(false), 500)
     advanceAfterDelay(2600)
@@ -104,10 +235,19 @@ export default function App() {
 
   useEffect(() => {
     if (!interceptFlash) return undefined
-    playInterceptorWhoosh()
-    const t = window.setTimeout(() => playExplosionSuccess(), 110)
+    const t = window.setTimeout(() => playExplosionSuccess(), 90)
     return () => window.clearTimeout(t)
   }, [interceptFlash])
+
+  useEffect(() => {
+    if (!launcherLaunchFx.active) return undefined
+    playLaunchIgnition()
+    playInterceptorWhoosh()
+  }, [launcherLaunchFx.active, launcherLaunchFx.token])
+
+  useEffect(() => {
+    setLaunchFlightStyle(undefined)
+  }, [roundIndex, current?.id])
 
   useEffect(() => {
     if (!interceptCrash) return undefined
@@ -117,14 +257,115 @@ export default function App() {
   }, [interceptCrash])
 
   useEffect(() => {
+    if (phase !== 'play' || CBT_DEV_DISABLE_ENEMY_APPROACH_SFX) return undefined
+    const ctrl = startEnemyMissileApproachAmbient()
+    return () => ctrl.stop()
+  }, [phase])
+
+  const syncLauncherAimToMissile = useCallback(() => {
+    const wrap = combatFrameRef.current
+    const rocket = enemyRocketRef.current
+    if (!wrap || !rocket) return
+    const wr = wrap.getBoundingClientRect()
+    const rr = rocket.getBoundingClientRect()
+    const cx = rr.left + rr.width / 2
+    const cy = rr.top + rr.height / 2
+    setLauncherAimDeg(horizontalScreenYawDeg(wr, cx))
+    setLauncherPitchDeg(pitchDegFromClientY(wr, cy))
+  }, [])
+
+  const nudgeLauncherAim = useCallback((deltaDeg) => {
+    setLauncherAimDeg((d) => normalizeAngle360(d + deltaDeg))
+  }, [])
+
+  const nudgeLauncherPitch = useCallback((deltaDeg) => {
+    setLauncherPitchDeg((p) => clampLauncherPitchDeg(p + deltaDeg))
+  }, [])
+
+  useEffect(() => {
+    if (phase !== 'play' || roundBlocking) return undefined
+    let cancelled = false
+    const loop = () => {
+      if (cancelled) return
+      const wrap = combatFrameRef.current
+      const rocket = enemyRocketRef.current
+      if (wrap && rocket) {
+        const wr = wrap.getBoundingClientRect()
+        const rr = rocket.getBoundingClientRect()
+        const cx = rr.left + rr.width / 2
+        missileBearingRef.current = horizontalScreenYawDeg(wr, cx)
+        missilePitchRef.current = pitchDegFromClientY(wr, rr.top + rr.height / 2)
+      }
+      aimRafRef.current = requestAnimationFrame(loop)
+    }
+    aimRafRef.current = requestAnimationFrame(loop)
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(aimRafRef.current)
+    }
+  }, [phase, roundBlocking, roundIndex, current?.id])
+
+  useEffect(() => {
+    if (phase !== 'play' || roundBlocking) return undefined
+    const onKeyDown = (e) => {
+      const el = e.target
+      if (el instanceof HTMLElement) {
+        const tag = el.tagName
+        if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT' || el.isContentEditable) return
+      }
+      if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault()
+        if (launcherLaunchFx.active) return
+        toggleCombatFreeze()
+        return
+      }
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'ArrowUp' && e.key !== 'ArrowDown')
+        return
+      e.preventDefault()
+      if (launcherLaunchFx.active) return
+      if (!combatFrozen) return
+      const step = e.shiftKey ? 3.2 : 1.1
+      const pitchStep = e.shiftKey ? 2.4 : 0.85
+      if (e.key === 'ArrowLeft') nudgeLauncherAim(-step)
+      else if (e.key === 'ArrowRight') nudgeLauncherAim(step)
+      else if (e.key === 'ArrowUp') nudgeLauncherPitch(pitchStep)
+      else nudgeLauncherPitch(-pitchStep)
+    }
+    window.addEventListener('keydown', onKeyDown, { capture: true })
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true })
+  }, [
+    phase,
+    roundBlocking,
+    launcherLaunchFx.active,
+    combatFrozen,
+    toggleCombatFreeze,
+    nudgeLauncherAim,
+    nudgeLauncherPitch
+  ])
+
+  useEffect(() => {
+    if (phase !== 'play') return undefined
+    const id = requestAnimationFrame(() => {
+      syncLauncherAimToMissile()
+    })
+    return () => cancelAnimationFrame(id)
+  }, [phase, roundIndex, current?.id, syncLauncherAimToMissile])
+
+  useEffect(() => {
     if (phase !== 'play' || !current || roundBlocking) return undefined
 
-    const deadline = Date.now() + ROUND_TIME_MS
+    roundDeadlineRef.current = Date.now() + ROUND_TIME_MS
+    freezeRemainingMsRef.current = 0
     timeoutFiredRef.current = false
     setSecondsLeft(Math.ceil(ROUND_TIME_MS / 1000))
 
     const id = setInterval(() => {
-      const ms = deadline - Date.now()
+      if (combatFrozenRef.current) {
+        const rem = Math.max(0, freezeRemainingMsRef.current)
+        setSecondsLeft(Math.ceil(rem / 1000))
+        return
+      }
+      const ms = roundDeadlineRef.current - Date.now()
       const sec = Math.max(0, Math.ceil(ms / 1000))
       setSecondsLeft(sec)
       if (ms <= 0) {
@@ -136,6 +377,29 @@ export default function App() {
     return () => clearInterval(id)
   }, [phase, current?.id, roundIndex, roundBlocking, handleTimeout])
 
+  useEffect(() => {
+    setLauncherChoiceIndex(0)
+    setLauncherSpinPulse(0)
+    setIsLauncherSpinning(false)
+    setIsLauncherSettling(false)
+    setLauncherLaunchFx({ active: false, token: 0, thought: '', hostile: false })
+    setCombatFrozen(false)
+    setCrateThoughtZoomStep(0)
+  }, [roundIndex, current?.id])
+
+  useEffect(() => {
+    return () => {
+      if (launcherSpinTimerRef.current) {
+        clearTimeout(launcherSpinTimerRef.current)
+        launcherSpinTimerRef.current = null
+      }
+      if (launcherSettleTimerRef.current) {
+        clearTimeout(launcherSettleTimerRef.current)
+        launcherSettleTimerRef.current = null
+      }
+    }
+  }, [])
+
   const startGame = () => {
     setRoundIndex(0)
     setScore(0)
@@ -144,11 +408,12 @@ export default function App() {
     setInterceptCrash(false)
     setCustomInterceptorText('')
     timeoutFiredRef.current = false
+    setCombatFrozen(false)
     const em = urlParams.email
     if (em && typeof window !== 'undefined') {
       const key = 'cbt_game_login_email_logged'
       if (sessionStorage.getItem(key) !== em) {
-        fetch('/api/game-login-email', {
+        fetch(apiUrl('/api/game-login-email'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -170,22 +435,48 @@ export default function App() {
 
   const onPick = useCallback(
     (text) => {
-      if (!current || phase !== 'play' || roundBlocking) return
-      if (text === current.balancedThought) {
-        timeoutFiredRef.current = true
-        setRoundBlocking(true)
-        setScore((s) => s + 1)
-        setFeedback('יירוט מוצלח! +1 נקודה.')
-        setInterceptFlash(true)
-        setTimeout(() => setInterceptFlash(false), 1500)
-        advanceAfterDelay(1900)
-      } else {
-        setFeedback('לא מתאים לטיל הזה. נסה מיירט אחר – אין כאן ניחוש אקראי, צריך התאמה.')
+      if (!current || phase !== 'play' || roundBlocking || isLauncherSpinning || launcherLaunchFx.active) return
+      if (!combatFrozen) {
+        setFeedback('הקפיאו את המסך כדי לעצור את טיל האויב, ואז כוונו את המשגר ושגרו.')
         setWrongShake(true)
         setTimeout(() => setWrongShake(false), 500)
+        return
       }
+      {
+        const yawDiff = Math.abs(shortestAngleDeg(launcherAimDegRef.current, missileBearingRef.current))
+        const pitchDiff = Math.abs(launcherPitchDegRef.current - missilePitchRef.current)
+        if (yawDiff > CBT_LAUNCHER_AIM_TOLERANCE_DEG || pitchDiff > CBT_LAUNCHER_PITCH_TOLERANCE_DEG) {
+          setFeedback(
+            'כוון את המשגר לטיל: עכבר = רק ימין/שמאל; חיצים למעלה/למטה = פנימה/החוצה; חיצים ימין/שמאל = סיבוב עדין.'
+          )
+          setWrongShake(true)
+          setTimeout(() => setWrongShake(false), 500)
+          return
+        }
+      }
+      const nowToken = Date.now()
+      const isCorrect = text === current.balancedThought
+      setRoundBlocking(true)
+      setLauncherLaunchFx({ active: true, token: nowToken, thought: text, hostile: !isCorrect })
+      setTimeout(() => {
+        if (isCorrect) {
+          timeoutFiredRef.current = true
+          setScore((s) => s + 1)
+          setFeedback('יירוט מוצלח! +1 נקודה.')
+          setInterceptFlash(true)
+          setTimeout(() => setInterceptFlash(false), 2400)
+          setLauncherLaunchFx({ active: false, token: 0, thought: '', hostile: false })
+          advanceAfterDelay(2600)
+          return
+        }
+        setFeedback('לא מתאים לטיל הזה. נסה מיירט אחר – אין כאן ניחוש אקראי, צריך התאמה.')
+        setLauncherLaunchFx({ active: false, token: 0, thought: '', hostile: false })
+        setWrongShake(true)
+        setRoundBlocking(false)
+        setTimeout(() => setWrongShake(false), 500)
+      }, isCorrect ? 820 : 1150)
     },
-    [current, phase, roundBlocking, advanceAfterDelay]
+    [current, phase, roundBlocking, isLauncherSpinning, launcherLaunchFx.active, combatFrozen, advanceAfterDelay]
   )
 
   const onFireCustom = useCallback(async () => {
@@ -197,6 +488,13 @@ export default function App() {
       setTimeout(() => setWrongShake(false), 500)
       return
     }
+    if (!combatFrozen) {
+      setFeedback('הקפיאו את המסך כדי לעצור את טיל האויב, ואז כוונו את המשגר ושגרו.')
+      setWrongShake(true)
+      setTimeout(() => setWrongShake(false), 500)
+      return
+    }
+
     const words = typed.split(/\s+/).filter(Boolean)
     if (words.length < 3) {
       setFeedback('כתוב לפחות שלוש מילים – משפט מלא של מחשבה מחליפה מקורית שלך, לא עותק.')
@@ -230,10 +528,23 @@ export default function App() {
       return
     }
 
+    {
+      const yawDiff = Math.abs(shortestAngleDeg(launcherAimDegRef.current, missileBearingRef.current))
+      const pitchDiff = Math.abs(launcherPitchDegRef.current - missilePitchRef.current)
+      if (yawDiff > CBT_LAUNCHER_AIM_TOLERANCE_DEG || pitchDiff > CBT_LAUNCHER_PITCH_TOLERANCE_DEG) {
+        setFeedback(
+          'כוון את המשגר לטיל: עכבר = רק ימין/שמאל; חיצים למעלה/למטה = פנימה/החוצה; חיצים ימין/שמאל = סיבוב עדין.'
+        )
+        setWrongShake(true)
+        setTimeout(() => setWrongShake(false), 500)
+        return
+      }
+    }
+
     setRoundBlocking(true)
     timeoutFiredRef.current = true
     try {
-      const res = await fetch('/api/cbt-custom-interceptor', {
+      const res = await fetch(apiUrl('/api/cbt-custom-interceptor'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -263,8 +574,8 @@ export default function App() {
       setScore((s) => s + 2)
       setFeedback('יירוט מוצלח! מיירט בייצור עצמי (המחשבה שלך) – +2 נקודות (נשמר בשרת).')
       setInterceptFlash(true)
-      setTimeout(() => setInterceptFlash(false), 1500)
-      advanceAfterDelay(1900)
+      setTimeout(() => setInterceptFlash(false), 2400)
+      advanceAfterDelay(2600)
     } catch (_) {
       setRoundBlocking(false)
       timeoutFiredRef.current = false
@@ -272,14 +583,75 @@ export default function App() {
       setWrongShake(true)
       setTimeout(() => setWrongShake(false), 500)
     }
-  }, [current, phase, roundBlocking, customInterceptorText, advanceAfterDelay, urlParams, choices])
+  }, [current, phase, roundBlocking, combatFrozen, customInterceptorText, advanceAfterDelay, urlParams, choices])
+
+  const rotateLauncher = useCallback(() => {
+    if (!Array.isArray(choices) || choices.length === 0 || roundBlocking || isLauncherSettling || launcherLaunchFx.active) return
+    if (isLauncherSpinning) {
+      if (launcherSpinTimerRef.current) {
+        clearTimeout(launcherSpinTimerRef.current)
+        launcherSpinTimerRef.current = null
+      }
+      setIsLauncherSpinning(false)
+      return
+    }
+    setIsLauncherSpinning(true)
+    setIsLauncherSettling(false)
+    setLauncherSpinPulse((p) => p + 1)
+    launcherSpinTimerRef.current = setTimeout(() => {
+      setLauncherChoiceIndex((i) => (i + 1) % choices.length)
+      setIsLauncherSpinning(false)
+      setIsLauncherSettling(false)
+      launcherSpinTimerRef.current = null
+    }, 2400)
+  }, [
+    choices,
+    roundBlocking,
+    isLauncherSpinning,
+    isLauncherSettling,
+    launcherLaunchFx.active
+  ])
+
+  const onAimPointerDown = useCallback(
+    (e) => {
+      if (roundBlocking || launcherLaunchFx.active || !combatFrozen) return
+      e.currentTarget.setPointerCapture(e.pointerId)
+      aimDragRef.current = true
+      const wrap = combatFrameRef.current
+      if (wrap) {
+        const wr = wrap.getBoundingClientRect()
+        setLauncherAimDeg(horizontalScreenYawDeg(wr, e.clientX))
+      }
+    },
+    [roundBlocking, launcherLaunchFx.active, combatFrozen]
+  )
+
+  const onAimPointerMove = useCallback((e) => {
+    if (!aimDragRef.current) return
+    const wrap = combatFrameRef.current
+    if (!wrap) return
+    const wr = wrap.getBoundingClientRect()
+    setLauncherAimDeg(horizontalScreenYawDeg(wr, e.clientX))
+  }, [])
+
+  const onAimPointerUp = useCallback((e) => {
+    if (!aimDragRef.current) return
+    aimDragRef.current = false
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    } catch (_) {
+      /* ignore */
+    }
+  }, [])
 
   return (
     <div className="cbt-app">
-      <header className="cbt-header">
-        <h1>{STORY_TITLE}</h1>
-        <p className="cbt-tagline">{TAGLINE}</p>
-      </header>
+      {phase !== 'play' && (
+        <header className="cbt-header">
+          <h1>{STORY_TITLE}</h1>
+          <p className="cbt-tagline">{TAGLINE}</p>
+        </header>
+      )}
 
       {phase === 'welcome' && (
         <section className="cbt-panel">
@@ -306,95 +678,47 @@ export default function App() {
       {phase === 'play' && current && (
         <section
           key={`${current.id}-${roundIndex}`}
-          className={`cbt-play ${interceptFlash ? 'cbt-intercept-hit' : ''} ${wrongShake ? 'cbt-shake' : ''} ${interceptCrash ? 'cbt-intercept-crash' : ''}`}
+          className={`cbt-play cbt-play--compact-bottom ${combatFrozen ? 'cbt-combat-frozen' : ''} ${interceptFlash ? 'cbt-intercept-hit' : ''} ${wrongShake ? 'cbt-shake' : ''} ${interceptCrash ? 'cbt-intercept-crash' : ''} ${launcherLaunchFx.active ? 'cbt-launching' : ''}`}
         >
-          <div className="cbt-progress">
-            <span className="cbt-score">ניקוד: {score}</span>
-            {' · '}
-            סבב {roundIndex + 1} מתוך {ROUNDS.length}
-            {' · '}
-            <span className={secondsLeft <= 5 && secondsLeft > 0 ? 'cbt-time-urgent' : ''}>
-              נותרו {secondsLeft} שניות
-            </span>
-          </div>
-
-          <div className="cbt-timer-bar" aria-hidden>
-            <div
-              className="cbt-timer-bar-fill"
-              style={{
-                width: `${Math.min(100, Math.max(0, (secondsLeft / (ROUND_TIME_MS / 1000)) * 100))}%`
-              }}
-            />
-          </div>
-
-          <div className="cbt-sky">
-            <div className="cbt-sky-stars" aria-hidden />
-            <div
-              className="cbt-missile"
-              style={{ '--missile-color': current.missileColor, '--missile-accent': current.missileColor }}
-              role="img"
-              aria-label={`טיל מחשבה: ${current.hostileThought}`}
-            >
-              <div className="cbt-missile-visual" aria-hidden>
-                <svg className="cbt-rocket-svg" viewBox="0 0 72 200" preserveAspectRatio="xMidYMid meet">
-                  <defs>
-                    <linearGradient id="cbtRocketBody" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#64748b" />
-                      <stop offset="50%" stopColor="#94a3b8" />
-                      <stop offset="100%" stopColor="#475569" />
-                    </linearGradient>
-                    <linearGradient id="cbtRocketNose" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="var(--missile-accent, #b91c1c)" />
-                      <stop offset="100%" stopColor="#7f1d1d" />
-                    </linearGradient>
-                    <radialGradient id="cbtFlameOuter" cx="50%" cy="0%" r="100%">
-                      <stop offset="0%" stopColor="#fef08a" stopOpacity="0.95" />
-                      <stop offset="45%" stopColor="#f97316" stopOpacity="0.85" />
-                      <stop offset="100%" stopColor="#dc2626" stopOpacity="0" />
-                    </radialGradient>
-                    <radialGradient id="cbtFlameInner" cx="50%" cy="0%" r="100%">
-                      <stop offset="0%" stopColor="#fff" stopOpacity="1" />
-                      <stop offset="40%" stopColor="#fde047" stopOpacity="0.9" />
-                      <stop offset="100%" stopColor="#ea580c" stopOpacity="0" />
-                    </radialGradient>
-                  </defs>
-                  <g className="cbt-rocket-group">
-                    <path d="M36 6 L52 38 L48 42 L24 42 L20 38 Z" fill="url(#cbtRocketNose)" />
-                    <rect x="22" y="40" width="28" height="72" rx="3" fill="url(#cbtRocketBody)" />
-                    <path d="M22 100 L8 118 L22 112 Z" fill="#334155" />
-                    <path d="M50 100 L64 118 L50 112 Z" fill="#334155" />
-                    <path d="M26 112 L46 112 L42 124 L30 124 Z" fill="#1e293b" />
-                    <ellipse className="cbt-rocket-flame-outer" cx="36" cy="138" rx="18" ry="34" fill="url(#cbtFlameOuter)" />
-                    <ellipse className="cbt-rocket-flame-inner" cx="36" cy="132" rx="10" ry="22" fill="url(#cbtFlameInner)" />
-                  </g>
-                </svg>
-                <div className="cbt-rocket-trail" />
-              </div>
-              <div className="cbt-missile-fuselage">
-                <span className="cbt-missile-badge">טיל · מחשבה לא מועילה</span>
-                <p className="cbt-missile-body-text">{current.hostileThought}</p>
-              </div>
-            </div>
-            <div className="cbt-dome-hint" aria-hidden>
-              <span className="cbt-dome-ico" aria-hidden>
-                <svg className="cbt-dome-svg" viewBox="0 0 64 40" aria-hidden>
-                  <path
-                    d="M4 32 Q32 6 60 32"
-                    fill="none"
-                    stroke="#38bdf8"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    opacity="0.9"
-                  />
-                  <path d="M8 32 L56 32" stroke="#0ea5e9" strokeWidth="2" />
-                </svg>
-              </span>
-              מיירטים: כיפת ברזל / חץ – התאם מחשבה חלופית לטיל
-            </div>
-          </div>
-
           {interceptFlash && (
             <div className="cbt-battle-fx cbt-battle-fx--success" aria-hidden>
+              <div className="cbt-collision-meet">
+                <svg
+                  className="cbt-collision-rocket cbt-collision-rocket--enemy"
+                  viewBox="0 0 72 200"
+                  preserveAspectRatio="xMidYMid meet"
+                  aria-hidden
+                >
+                  <defs>
+                    <linearGradient id={`cbtColEn-${rid}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#ef4444" />
+                      <stop offset="100%" stopColor="#991b1b" />
+                    </linearGradient>
+                  </defs>
+                  <g>
+                    <path d="M36 6 L52 38 L48 42 L24 42 L20 38 Z" fill={`url(#cbtColEn-${rid})`} />
+                    <rect x="22" y="40" width="28" height="72" rx="3" fill="#57534e" />
+                  </g>
+                </svg>
+                <svg
+                  className="cbt-collision-rocket cbt-collision-rocket--intercept"
+                  viewBox="0 0 72 200"
+                  preserveAspectRatio="xMidYMid meet"
+                  aria-hidden
+                >
+                  <defs>
+                    <linearGradient id={`cbtColInt-${rid}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#e2e8f0" />
+                      <stop offset="100%" stopColor="#64748b" />
+                    </linearGradient>
+                  </defs>
+                  <g>
+                    <path d="M36 6 L52 38 L48 42 L24 42 L20 38 Z" fill={`url(#cbtColInt-${rid})`} />
+                    <rect x="22" y="40" width="28" height="72" rx="3" fill="#475569" />
+                  </g>
+                </svg>
+                <div className="cbt-collision-x" />
+              </div>
               <div className="cbt-iron-dome-launch">
                 <div className="cbt-beam-slot">
                   <div className="cbt-interceptor-beam" />
@@ -462,17 +786,6 @@ export default function App() {
                     <rect x="-40" y="-52" width="80" height="7" rx="1.5" fill="#525c40" />
                     <circle className="cbt-launcher-muzzle-glow" cx="-31" cy="-50" r="3.2" fill="#facc15" />
                   </g>
-                  <text
-                    x="110"
-                    y="110"
-                    textAnchor="middle"
-                    fill="#c8d4b0"
-                    fontSize="9"
-                    fontFamily="Heebo, sans-serif"
-                    fontWeight="700"
-                  >
-                    כיפת ברזל
-                  </text>
                 </svg>
               </div>
               <div className="cbt-exp-white-flash" />
@@ -551,56 +864,330 @@ export default function App() {
                   <span key={i} className="cbt-exp-spark cbt-exp-spark--fail" style={{ '--cbt-spark': i }} />
                 ))}
               </div>
-              <p className="cbt-crash-caption">המיירט נפל – פיצוץ על הקרקע</p>
             </div>
           )}
 
-          <h3 className="cbt-intercept-title">בחר משגר יירוט (מחשבה חלופית על המשגר)</h3>
-          <div className="cbt-choices">
-            {choices.map((text) => {
-              const roundForText = ROUNDS.find((r) => r.balancedThought === text)
-              const sys = roundForText?.interceptorSystem
-              const launcher =
-                sys && INTERCEPTOR_LABEL[sys] ? `משגר · ${INTERCEPTOR_LABEL[sys]}` : 'משגר יירוט'
-              return (
-                <button
-                  key={text}
-                  type="button"
-                  className="cbt-choice"
-                  disabled={roundBlocking}
-                  onClick={() => onPick(text)}
+          <div className="cbt-play-combat-stack">
+          <div className="cbt-launcher-selector">
+                <div
+                  className={`cbt-launcher-tube ${launcherSpinPulse % 2 === 1 ? 'cbt-launcher-tube-spin' : ''} ${isLauncherSpinning ? 'cbt-launcher-tube-active-spin' : ''} ${isLauncherSettling ? 'cbt-launcher-tube-settling' : ''}`}
+                  aria-live="polite"
                 >
-                  <span className="cbt-choice-code">{launcher}</span>
-                  <span className="cbt-choice-text">{text}</span>
-                </button>
-              )
-            })}
+                  <div
+                    ref={combatFrameRef}
+                    className={`cbt-launcher-photo-wrap ${CBT_SHOW_LAUNCHER_COMBAT_VIDEO ? 'cbt-photo-wrap--combat-video' : 'cbt-photo-wrap--enemy-sky-only'} ${combatFrozen ? 'cbt-combat-frozen' : ''}`}
+                  >
+                    <div className="cbt-scene-enemy-layer">
+                      <div className="cbt-scene-enemy-stage">
+                        <div className="cbt-scene-enemy-sky" aria-hidden />
+                        <div
+                          ref={enemyRocketRef}
+                          className={`cbt-scene-enemy-rocket ${launcherLaunchFx.active && launcherLaunchFx.hostile ? 'cbt-scene-enemy-rocket--threat' : ''}`}
+                        >
+                          <span className="cbt-enemy-meteor-sparkle" aria-hidden />
+                          <svg viewBox="0 0 72 216" className="cbt-scene-enemy-svg" preserveAspectRatio="xMidYMid meet">
+                          <defs>
+                            <linearGradient id={`cbtMeteorTail-${rid}`} x1="50%" y1="0%" x2="50%" y2="100%">
+                              <stop offset="0%" stopColor="rgba(255, 255, 255, 0.98)" />
+                              <stop offset="6%" stopColor="rgba(254, 249, 195, 0.85)" />
+                              <stop offset="22%" stopColor="rgba(186, 230, 253, 0.55)" />
+                              <stop offset="48%" stopColor="rgba(96, 165, 250, 0.22)" />
+                              <stop offset="78%" stopColor="rgba(59, 130, 246, 0.08)" />
+                              <stop offset="100%" stopColor="rgba(15, 23, 42, 0)" />
+                            </linearGradient>
+                            <radialGradient id={`cbtMeteorHead-${rid}`} cx="50%" cy="50%" r="50%">
+                              <stop offset="0%" stopColor="#ffffff" />
+                              <stop offset="45%" stopColor="rgba(254, 240, 138, 0.95)" />
+                              <stop offset="100%" stopColor="rgba(252, 165, 165, 0)" />
+                            </radialGradient>
+                            <linearGradient id={`cbtEnemyNose-${rid}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                              <stop offset="0%" stopColor="#f87171" />
+                              <stop offset="55%" stopColor="#dc2626" />
+                              <stop offset="100%" stopColor="#7f1d1d" />
+                            </linearGradient>
+                            <linearGradient id={`cbtEnemyBody-${rid}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                              <stop offset="0%" stopColor="#57534e" />
+                              <stop offset="100%" stopColor="#44403c" />
+                            </linearGradient>
+                            <linearGradient id={`cbtEnemyJet-${rid}`} x1="50%" y1="0%" x2="50%" y2="100%">
+                              <stop offset="0%" stopColor="rgba(255, 255, 255, 0.95)" />
+                              <stop offset="18%" stopColor="rgba(186, 230, 253, 0.88)" />
+                              <stop offset="40%" stopColor="rgba(125, 211, 252, 0.55)" />
+                              <stop offset="70%" stopColor="rgba(248, 113, 113, 0.35)" />
+                              <stop offset="100%" stopColor="rgba(127, 29, 29, 0)" />
+                            </linearGradient>
+                          </defs>
+                          <path
+                            d="M 36 0 L 51 214 L 21 214 Z"
+                            fill={`url(#cbtMeteorTail-${rid})`}
+                            className="cbt-enemy-meteor-streak-svg"
+                          />
+                          <path d="M36 6 L52 38 L48 42 L24 42 L20 38 Z" fill={`url(#cbtEnemyNose-${rid})`} />
+                          <circle cx="36" cy="16" r="5.5" fill={`url(#cbtMeteorHead-${rid})`} opacity="0.92" />
+                          <rect x="22" y="40" width="28" height="72" rx="3" fill={`url(#cbtEnemyBody-${rid})`} />
+                          <ellipse cx="36" cy="138" rx="16" ry="32" fill="rgba(254, 243, 199, 0.35)" />
+                          <ellipse cx="36" cy="168" rx="11" ry="40" fill={`url(#cbtEnemyJet-${rid})`} />
+                          </svg>
+                        </div>
+                      </div>
+                      <div
+                        className={`cbt-scene-aim-overlay ${combatFrozen ? '' : 'cbt-scene-aim-overlay--locked'}`}
+                        role="presentation"
+                        aria-label="כיוון משגר: גרירה אופקית על השמיים לסיבוב; עומק רק בחיצים למעלה או למטה"
+                        onPointerDown={onAimPointerDown}
+                        onPointerMove={onAimPointerMove}
+                        onPointerUp={onAimPointerUp}
+                        onPointerCancel={onAimPointerUp}
+                      />
+                    </div>
+                    {CBT_SHOW_LAUNCHER_COMBAT_VIDEO ? (
+                      <div className="cbt-real-launcher-bay" aria-hidden>
+                        <video
+                          className="cbt-real-launcher-video"
+                          src={COMBAT_VIDEO_SRC}
+                          autoPlay
+                          muted
+                          loop
+                          playsInline
+                          onError={() =>
+                            setVideoLoadError('לא נמצא וידאו שיגור. שמרו את הקובץ בנתיב CBT/public/videos/rocket flight.mp4')
+                          }
+                        />
+                      </div>
+                    ) : null}
+                    {interceptFlash ? (
+                      <div
+                        className="cbt-in-frame-hit"
+                        key={`hit-${current.id}-${roundIndex}`}
+                        aria-hidden
+                      >
+                        <div className="cbt-in-frame-hit-meet">
+                          <div className="cbt-in-frame-hit-flash" />
+                          <div className="cbt-in-frame-hit-core" />
+                          <div className="cbt-in-frame-hit-shock" />
+                          {Array.from({ length: 14 }, (_, i) => (
+                            <span key={i} className="cbt-in-frame-hit-spark" style={{ '--cbt-if-spark': i }} />
+                          ))}
+                          <div className="cbt-in-frame-hit-smoke" />
+                        </div>
+                      </div>
+                    ) : null}
+                    <div
+                      className={`cbt-launcher-deck-aim ${CBT_SHOW_LAUNCHER_COMBAT_VIDEO ? 'cbt-launcher-deck-aim--combat' : ''}`}
+                    >
+                    <div
+                      className="cbt-launcher-turntable-pivot"
+                      style={{
+                        transform: CBT_SHOW_LAUNCHER_COMBAT_VIDEO
+                          ? `rotate(${launcherAimDeg}deg)`
+                          : `translateX(-50%) rotateZ(${launcherAimDeg}deg) scale(0.88)`
+                      }}
+                    >
+                    <div
+                      className="cbt-launcher-turntable-depth-tilt"
+                      style={{ transform: `rotateX(${launcherPitchDeg}deg)` }}
+                    >
+                    <div className="cbt-launcher-turntable-base" aria-hidden />
+                    <div className={`cbt-launcher-deck ${isLauncherSpinning ? 'is-spinning' : ''} ${isLauncherSettling ? 'is-settling' : ''}`}>
+                      <div className={`cbt-launcher-bay cbt-launcher-bay--cube ${isLauncherSpinning ? 'is-spinning' : ''} ${isLauncherSettling ? 'is-settling' : ''}`}>
+                        <div
+                          className="cbt-launcher-crate-side-panel"
+                          style={{ '--cbt-crate-zoom': crateThoughtZoomStep }}
+                        >
+                          <button
+                            type="button"
+                            className="cbt-launcher-crate-thought"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setCrateThoughtZoomStep((s) => (s >= CBT_CRATE_ZOOM_MAX ? 0 : s + 1))
+                            }}
+                          >
+                            {activeLauncherThought}
+                          </button>
+                        </div>
+                        <div className="cbt-missile-iron-bundle" aria-hidden>
+                          {/* סרט עבה מאוד — כמעט דופן תיבה; קומות צמודות בלי חפיפה */}
+                          <svg
+                            className="cbt-missile-iron-bundle-hoop cbt-missile-iron-bundle-hoop--back cbt-missile-iron-bundle-hoop--unified"
+                            viewBox="-104 -12 592 412"
+                            preserveAspectRatio="xMidYMid meet"
+                            aria-hidden
+                          >
+                            <defs>
+                              {/* פלדה צבאית מאובקת — לא בהיר/פלורסנטי */}
+                              <linearGradient id="cbt-hoop-grad-back" x1="12%" y1="8%" x2="88%" y2="92%">
+                                <stop offset="0%" stopColor="#7a7f74" />
+                                <stop offset="22%" stopColor="#5a5e54" />
+                                <stop offset="45%" stopColor="#43463c" />
+                                <stop offset="68%" stopColor="#2e2f29" />
+                                <stop offset="100%" stopColor="#12110f" />
+                              </linearGradient>
+                            </defs>
+                            <g
+                              fill="none"
+                              stroke="url(#cbt-hoop-grad-back)"
+                              strokeWidth="80"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M -3 52 A 32 32 0 0 0 -35 84 L -35 116 A 32 32 0 0 0 -3 150 A 32 32 0 0 0 -35 182 L -35 214 A 32 32 0 0 0 -3 250 A 32 32 0 0 0 -35 282 L -35 314 A 32 32 0 0 0 -3 350" />
+                              <path d="M 363 52 A 32 32 0 0 1 395 84 L 395 116 A 32 32 0 0 1 363 150 A 32 32 0 0 1 395 182 L 395 214 A 32 32 0 0 1 363 250 A 32 32 0 0 1 395 282 L 395 314 A 32 32 0 0 1 363 350" />
+                              <path d="M -3 52 L 363 52 M -3 150 L 363 150 M -3 250 L 363 250 M -3 350 L 363 350" />
+                            </g>
+                          </svg>
+                          <div className="cbt-single-missile-grid" aria-hidden>
+                          <div className="cbt-single-missile-row cbt-single-missile-row--rear">
+                            {[0, 1, 2].map((i) => (
+                              <div key={`r-${i}`} className="cbt-single-missile-wrap">
+                                <span className="cbt-single-missile-body" />
+                                <span className="cbt-single-missile-nose" />
+                                <span className="cbt-single-missile-fin cbt-single-missile-fin--l" />
+                                <span className="cbt-single-missile-fin cbt-single-missile-fin--r" />
+                              </div>
+                            ))}
+                          </div>
+                          <div className="cbt-single-missile-row cbt-single-missile-row--back">
+                            {[0, 1, 2].map((i) => (
+                              <div
+                                key={`b-${i}`}
+                                className={`cbt-single-missile-wrap${i === 1 ? ' cbt-single-missile-wrap--spindle-axis' : ''}`}
+                              >
+                                <span className="cbt-single-missile-body" />
+                                <span className="cbt-single-missile-nose" />
+                                <span className="cbt-single-missile-fin cbt-single-missile-fin--l" />
+                                <span className="cbt-single-missile-fin cbt-single-missile-fin--r" />
+                              </div>
+                            ))}
+                          </div>
+                          <div className="cbt-single-missile-row cbt-single-missile-row--front">
+                            {[0, 1, 2].map((i) => (
+                              <div key={`f-${i}`} className="cbt-single-missile-wrap">
+                                <span className="cbt-single-missile-body" />
+                                <span className="cbt-single-missile-nose" />
+                                <span className="cbt-single-missile-fin cbt-single-missile-fin--l" />
+                                <span className="cbt-single-missile-fin cbt-single-missile-fin--r" />
+                              </div>
+                            ))}
+                          </div>
+                          </div>
+                          <svg
+                            className="cbt-missile-iron-bundle-hoop cbt-missile-iron-bundle-hoop--front cbt-missile-iron-bundle-hoop--unified"
+                            viewBox="-104 -12 592 412"
+                            preserveAspectRatio="xMidYMid meet"
+                            aria-hidden
+                          >
+                            <defs>
+                              <linearGradient id="cbt-hoop-grad-front" x1="10%" y1="6%" x2="90%" y2="94%">
+                                <stop offset="0%" stopColor="#868b80" />
+                                <stop offset="24%" stopColor="#5f6358" />
+                                <stop offset="48%" stopColor="#464a40" />
+                                <stop offset="70%" stopColor="#30322c" />
+                                <stop offset="100%" stopColor="#161514" />
+                              </linearGradient>
+                            </defs>
+                            <path
+                              d="M 395 100 L 395 116 A 32 32 0 0 1 363 150 L -3 150 A 32 32 0 0 1 -35 116 L -35 100 M 395 200 L 395 216 A 32 32 0 0 1 363 250 L -3 250 A 32 32 0 0 1 -35 216 L -35 200 M 395 300 L 395 316 A 32 32 0 0 1 363 350 L -3 350 A 32 32 0 0 1 -35 316 L -35 300"
+                              fill="none"
+                              stroke="url(#cbt-hoop-grad-front)"
+                              strokeWidth="80"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                    </div>
+                    </div>
+                    </div>
+                    {CBT_SHOW_LAUNCHER_COMBAT_VIDEO ? (
+                      <div
+                        className="cbt-launch-flight-aim-wrap"
+                        style={{ transform: `rotateX(${launcherPitchDeg}deg) rotate(${launcherAimDeg}deg)` }}
+                        aria-hidden
+                      >
+                        <div
+                          key={launcherLaunchFx.token || 0}
+                          className={`cbt-launch-flight ${launcherLaunchFx.active ? 'is-active' : ''} ${launcherLaunchFx.hostile ? 'is-hostile' : 'is-intercept'}`}
+                          aria-hidden
+                        >
+                          <div className="cbt-launch-muzzle-flash" />
+                          <div className="cbt-launch-flame" />
+                          <div className="cbt-launch-pressure-wave" />
+                          <div className="cbt-launch-smoke">
+                            <span />
+                            <span />
+                            <span />
+                            <span />
+                            <span />
+                          </div>
+                          <div className="cbt-launch-body" aria-hidden />
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        key={launcherLaunchFx.token || 0}
+                        className={`cbt-launch-flight ${launcherLaunchFx.active ? 'is-active' : ''} ${launcherLaunchFx.hostile ? 'is-hostile' : 'is-intercept'}`}
+                        aria-hidden
+                      >
+                        <div className="cbt-launch-muzzle-flash" />
+                        <div className="cbt-launch-flame" />
+                        <div className="cbt-launch-pressure-wave" />
+                        <div className="cbt-launch-smoke">
+                          <span />
+                          <span />
+                          <span />
+                          <span />
+                          <span />
+                        </div>
+                        <div className="cbt-launch-body" aria-hidden />
+                      </div>
+                    )}
+                  </div>
+                  <div className="cbt-hostile-thought-strip cbt-hostile-thought-strip--minimal">
+                    <p className="cbt-hostile-thought-text">{current.hostileThought}</p>
+                  </div>
+                  {videoLoadError ? <p className="error-msg">{videoLoadError}</p> : null}
+                </div>
+            <div className="cbt-launcher-actions">
+              <button
+                type="button"
+                className="cbt-secondary cbt-spin-btn"
+                disabled={roundBlocking || choices.length === 0 || isLauncherSpinning || isLauncherSettling || launcherLaunchFx.active}
+                onClick={rotateLauncher}
+              >
+                {isLauncherSpinning ? 'עצור' : isLauncherSettling ? '…' : 'סובב'}
+              </button>
+              <button
+                type="button"
+                className="cbt-primary cbt-launch-now-btn"
+                disabled={roundBlocking || !activeLauncherThought || isLauncherSpinning || launcherLaunchFx.active || !combatFrozen}
+                onClick={() => onPick(activeLauncherThought)}
+              >
+                שגר
+              </button>
+            </div>
+          </div>
           </div>
 
-          <div className="cbt-custom-launcher">
-            <h3 className="cbt-intercept-title">מיירט בייצור עצמי (+2 נקודות)</h3>
-            <p className="cbt-custom-hint">
-              המצא <strong>מחשבה מחליפה משלך</strong> – לא להעתיק את הטיל ולא אחד משלושת הניסוחים על המשגרים. לפחות שלוש מילים במשפט מלא; התאם לרוח של מחשבה תומכת ומציאותית כמו במשגרים.
-            </p>
+          <div className="cbt-custom-launcher cbt-custom-launcher--minimal">
             <textarea
               className="cbt-custom-input"
-              rows={3}
+              rows={2}
               value={customInterceptorText}
               onChange={(e) => setCustomInterceptorText(e.target.value)}
               disabled={roundBlocking}
-              placeholder="למשל: במילים שלי, אני יכול ל..."
+              placeholder=""
             />
             <button
               type="button"
               className="cbt-primary cbt-fire-custom"
-              disabled={roundBlocking}
+              disabled={roundBlocking || !combatFrozen}
               onClick={onFireCustom}
             >
-              יירה מיירט
+              יירה
             </button>
           </div>
-
-          {feedback && <p className={`cbt-feedback ${feedbackClass(feedback)}`}>{feedback}</p>}
         </section>
       )}
 
