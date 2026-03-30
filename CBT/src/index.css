@@ -195,6 +195,74 @@ body {
   margin: 1rem 0;
 }
 
+.cbt-situation-picker-hint {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: #cbd5e1;
+}
+
+.cbt-situation-grid {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.cbt-situation-card {
+  width: 100%;
+  text-align: right;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(30, 41, 59, 0.65);
+  color: #f1f5f9;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.45;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cbt-situation-card:hover {
+  border-color: rgba(99, 102, 241, 0.75);
+  background: rgba(51, 65, 85, 0.85);
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25);
+}
+
+.cbt-situation-back {
+  margin-top: 0.25rem;
+}
+
+.cbt-active-situation {
+  margin: 0 0 0.65rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  text-align: right;
+}
+
+.cbt-active-situation-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #7dd3fc;
+  margin-bottom: 0.25rem;
+}
+
+.cbt-active-situation-text {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: #e2e8f0;
+  font-weight: 700;
+}
+
 .cbt-primary,
 .cbt-secondary {
   display: inline-block;
@@ -1398,6 +1466,8 @@ body {
 .cbt-play.cbt-combat-frozen .cbt-launcher-photo-wrap .cbt-scene-enemy-rocket--threat *,
 .cbt-play.cbt-combat-frozen .cbt-launcher-photo-wrap .cbt-launch-flight.is-active,
 .cbt-play.cbt-combat-frozen .cbt-launcher-photo-wrap .cbt-launch-flight.is-active *,
+.cbt-play.cbt-combat-frozen .cbt-launcher-photo-wrap .cbt-launch-flight--world.is-active,
+.cbt-play.cbt-combat-frozen .cbt-launcher-photo-wrap .cbt-launch-flight--world.is-active *,
 .cbt-play.cbt-combat-frozen .cbt-launcher-photo-wrap .cbt-in-frame-hit,
 .cbt-play.cbt-combat-frozen .cbt-launcher-photo-wrap .cbt-in-frame-hit * {
   animation-play-state: running !important;
@@ -1409,7 +1479,9 @@ body {
 }
 
 .cbt-play.cbt-combat-frozen .cbt-launcher-tube .cbt-launch-flight.is-active,
-.cbt-play.cbt-combat-frozen .cbt-launcher-tube .cbt-launch-flight.is-active * {
+.cbt-play.cbt-combat-frozen .cbt-launcher-tube .cbt-launch-flight.is-active *,
+.cbt-play.cbt-combat-frozen .cbt-launcher-tube .cbt-launch-flight--world.is-active,
+.cbt-play.cbt-combat-frozen .cbt-launcher-tube .cbt-launch-flight--world.is-active * {
   animation-play-state: running !important;
 }
 
@@ -1503,6 +1575,124 @@ body {
     opacity: 0.32;
     transform: translate(-12px, 128px) rotate(32deg) scale(0.8);
     filter: brightness(0.9);
+  }
+}
+
+/* מיירט במרחב הפריים – מבסיס המשגר אל טיל האויב (או לכיוון השחקן אם בחירה שגויה) */
+.cbt-photo-wrap--enemy-sky-only .cbt-launch-flight--world {
+  display: block;
+  position: absolute;
+  z-index: 14;
+  left: 50%;
+  top: 86%;
+  right: auto;
+  bottom: auto;
+  width: min(13%, 76px);
+  max-width: 76px;
+  margin: 0;
+  transform: translate(-50%, -50%);
+  transform-origin: 50% 80%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cbt-photo-wrap--enemy-sky-only .cbt-launch-flight--world.is-active {
+  animation: cbt-launch-flight-to-target 0.98s cubic-bezier(0.18, 0.82, 0.2, 1) forwards;
+}
+
+.cbt-photo-wrap--enemy-sky-only .cbt-launch-flight--world.is-active.is-hostile {
+  animation: cbt-launch-flight-to-target-hostile 0.98s cubic-bezier(0.22, 0.88, 0.28, 1) forwards;
+}
+
+@keyframes cbt-launch-flight-to-target {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) translate(0, 0) rotate(var(--cbt-launch-angle, 0deg)) scale(0.9);
+    filter:
+      drop-shadow(0 0 12px rgba(251, 191, 36, 0.95))
+      drop-shadow(0 6px 28px rgba(248, 113, 113, 0.25));
+  }
+  18% {
+    opacity: 1;
+    filter:
+      drop-shadow(0 0 20px rgba(254, 243, 199, 0.9))
+      drop-shadow(0 10px 36px rgba(251, 146, 60, 0.45));
+  }
+  72% {
+    opacity: 1;
+    transform: translate(-50%, -50%) translate(calc(var(--cbt-launch-dx) * 0.78), calc(var(--cbt-launch-dy) * 0.78))
+      rotate(var(--cbt-launch-angle, 0deg)) scale(0.86);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) translate(var(--cbt-launch-dx), var(--cbt-launch-dy))
+      rotate(var(--cbt-launch-angle, 0deg)) scale(0.72);
+    filter: drop-shadow(0 0 24px rgba(254, 249, 195, 0.5));
+  }
+}
+
+@keyframes cbt-launch-flight-to-target-hostile {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) translate(0, 0) rotate(var(--cbt-launch-angle, 0deg)) scale(0.88);
+    filter: drop-shadow(0 0 14px rgba(248, 113, 113, 0.75));
+  }
+  55% {
+    opacity: 1;
+    transform: translate(-50%, -50%) translate(calc(var(--cbt-launch-dx) * 0.55), calc(var(--cbt-launch-dy) * 0.55))
+      rotate(var(--cbt-launch-angle, 0deg)) scale(0.92);
+    filter: drop-shadow(0 0 18px rgba(239, 68, 68, 0.65));
+  }
+  100% {
+    opacity: 0.2;
+    transform: translate(-50%, -50%) translate(var(--cbt-launch-dx), var(--cbt-launch-dy))
+      rotate(var(--cbt-launch-angle, 0deg)) scale(0.78);
+    filter: drop-shadow(0 0 12px rgba(127, 29, 29, 0.4));
+  }
+}
+
+.cbt-launch-booster-trail {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  width: 16px;
+  height: 48px;
+  margin-left: -8px;
+  border-radius: 42% 42% 55% 55%;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 253, 240, 0.98) 0%,
+    rgba(251, 191, 36, 0.82) 32%,
+    rgba(234, 88, 12, 0.55) 72%,
+    rgba(220, 38, 38, 0.2) 100%
+  );
+  opacity: 0;
+  pointer-events: none;
+  filter: blur(0.6px);
+}
+
+.cbt-launch-flight--world.is-active .cbt-launch-booster-trail {
+  opacity: 0.95;
+  animation: cbt-booster-trail-pulse 0.09s ease-in-out infinite alternate;
+}
+
+.cbt-launch-flight--world.is-active.is-hostile .cbt-launch-booster-trail {
+  background: linear-gradient(
+    180deg,
+    rgba(254, 226, 226, 0.95) 0%,
+    rgba(248, 113, 113, 0.75) 40%,
+    rgba(185, 28, 28, 0.45) 100%
+  );
+}
+
+@keyframes cbt-booster-trail-pulse {
+  from {
+    transform: scaleY(1) scaleX(1);
+    opacity: 0.82;
+  }
+  to {
+    transform: scaleY(1.18) scaleX(1.1);
+    opacity: 1;
   }
 }
 
@@ -1765,6 +1955,43 @@ body {
   gap: 0.35rem;
 }
 
+.cbt-launcher-crate-thought-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: calc(0.2rem + var(--cbt-crate-zoom) * 0.04rem);
+  width: 100%;
+  min-width: 0;
+}
+
+.cbt-launcher-crate-nav {
+  flex-shrink: 0;
+  margin: 0;
+  padding: calc(0.15rem + var(--cbt-crate-zoom) * 0.04rem) calc(0.2rem + var(--cbt-crate-zoom) * 0.05rem);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.75);
+  color: #e2e8f0;
+  font-size: calc(1rem + var(--cbt-crate-zoom) * 0.1rem);
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: auto;
+  font-family: inherit;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.cbt-launcher-crate-nav:hover:not(:disabled) {
+  background: rgba(51, 65, 85, 0.95);
+  border-color: rgba(56, 189, 248, 0.55);
+  color: #f8fafc;
+}
+
+.cbt-launcher-crate-nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .cbt-launcher-crate-serial {
   font-family: ui-monospace, 'Cascadia Code', monospace;
   font-size: 0.56rem;
@@ -1778,7 +2005,9 @@ body {
   margin: 0;
   padding: 0;
   border: none;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
+  width: auto;
   cursor: pointer;
   font: inherit;
   font-size: calc(0.52rem + var(--cbt-crate-zoom) * 0.12rem);

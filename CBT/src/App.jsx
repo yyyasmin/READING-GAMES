@@ -126,6 +126,8 @@ export default function App() {
   const ironMetalId = `cbt-im-${rid}`
   const ironGreenId = `cbt-ig-${rid}`
   const [phase, setPhase] = useState('welcome')
+  /** מזהה סבב מ־ROUNDS — נבחר במסך «בחרו סיטואציה» לפני הכניסה ל־play */
+  const [selectedSituationId, setSelectedSituationId] = useState(null)
   const [roundIndex, setRoundIndex] = useState(0)
   const [score, setScore] = useState(0)
   const [feedback, setFeedback] = useState('')
@@ -174,6 +176,7 @@ export default function App() {
   const freezeRemainingMsRef = useRef(0)
   const combatFrozenRef = useRef(false)
   const roundIndexRef = useRef(roundIndex)
+  const playSessionRoundsLengthRef = useRef(0)
   const launcherSpinTimerRef = useRef(null)
   const launcherSettleTimerRef = useRef(null)
   roundIndexRef.current = roundIndex
@@ -193,7 +196,14 @@ export default function App() {
     })
   }, [roundBlocking, launcherLaunchFx.active])
 
-  const current = ROUNDS[roundIndex]
+  const playSessionRounds = useMemo(() => {
+    if (!selectedSituationId) return []
+    const r = ROUNDS.find((x) => x.id === selectedSituationId)
+    return r ? [r] : []
+  }, [selectedSituationId])
+  playSessionRoundsLengthRef.current = playSessionRounds.length
+
+  const current = playSessionRounds[roundIndex]
   const choices = useMemo(() => {
     if (!current) return []
     const others = ROUNDS.filter((r) => r.id !== current.id).map((r) => r.balancedThought)
@@ -205,7 +215,7 @@ export default function App() {
   const advanceAfterDelay = useCallback((delayMs) => {
     setTimeout(() => {
       const idx = roundIndexRef.current
-      if (idx >= ROUNDS.length - 1) {
+      if (idx >= playSessionRoundsLengthRef.current - 1) {
         setPhase('done')
         setFeedback('')
       } else {
@@ -400,7 +410,29 @@ export default function App() {
     }
   }, [])
 
-  const startGame = () => {
+  const logGameLoginEmail = useCallback(() => {
+    const em = urlParams.email
+    if (!em || typeof window === 'undefined') return
+    const key = 'cbt_game_login_email_logged'
+    if (sessionStorage.getItem(key) === em) return
+    fetch(apiUrl('/api/game-login-email'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: em,
+        game_type: 'cbt_war',
+        subject: urlParams.subject || undefined,
+        age_group: urlParams.age_group || undefined
+      })
+    })
+      .then((res) => {
+        if (res.ok) sessionStorage.setItem(key, em)
+      })
+      .catch(() => {})
+  }, [urlParams])
+
+  const goToSituationPicker = useCallback(() => {
+    setSelectedSituationId(null)
     setRoundIndex(0)
     setScore(0)
     setFeedback('')
@@ -409,29 +441,28 @@ export default function App() {
     setCustomInterceptorText('')
     timeoutFiredRef.current = false
     setCombatFrozen(false)
-    const em = urlParams.email
-    if (em && typeof window !== 'undefined') {
-      const key = 'cbt_game_login_email_logged'
-      if (sessionStorage.getItem(key) !== em) {
-        fetch(apiUrl('/api/game-login-email'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: em,
-            game_type: 'cbt_war',
-            subject: urlParams.subject || undefined,
-            age_group: urlParams.age_group || undefined
-          })
-        })
-          .then((res) => {
-            if (res.ok) sessionStorage.setItem(key, em)
-          })
-          .catch(() => {})
-      }
-    }
+    logGameLoginEmail()
     resumeBattleAudio()
+    setPhase('choose_situation')
+  }, [logGameLoginEmail])
+
+  const beginSituationRound = useCallback((roundId) => {
+    const found = ROUNDS.find((r) => r.id === roundId)
+    if (!found) {
+      setFeedback('הסיטואציה שנבחרה לא נמצאה.')
+      return
+    }
+    setSelectedSituationId(roundId)
+    setRoundIndex(0)
+    setScore(0)
+    setFeedback('')
+    setRoundBlocking(false)
+    setInterceptCrash(false)
+    setCustomInterceptorText('')
+    timeoutFiredRef.current = false
+    setCombatFrozen(false)
     setPhase('play')
-  }
+  }, [])
 
   const onPick = useCallback(
     (text) => {
@@ -456,25 +487,46 @@ export default function App() {
       }
       const nowToken = Date.now()
       const isCorrect = text === current.balancedThought
+      const hostile = !isCorrect
+      const flightStyle = CBT_SHOW_LAUNCHER_COMBAT_VIDEO
+        ? undefined
+        : computeLaunchFlightWorldStyle(
+            combatFrameRef.current,
+            launchDeckAimRef.current,
+            enemyRocketRef.current,
+            hostile
+          )
+      if (!CBT_SHOW_LAUNCHER_COMBAT_VIDEO && flightStyle == null) {
+        setFeedback('לא ניתן לחשב מסלול שיגור (אלמנטי המסך חסרים). רענן את הדף ונסה שוב.')
+        return
+      }
+      if (!CBT_SHOW_LAUNCHER_COMBAT_VIDEO) {
+        setLaunchFlightStyle(flightStyle)
+      }
       setRoundBlocking(true)
-      setLauncherLaunchFx({ active: true, token: nowToken, thought: text, hostile: !isCorrect })
-      setTimeout(() => {
+      setLauncherLaunchFx({ active: true, token: nowToken, thought: text, hostile })
+      window.setTimeout(() => {
         if (isCorrect) {
           timeoutFiredRef.current = true
           setScore((s) => s + 1)
           setFeedback('יירוט מוצלח! +1 נקודה.')
           setInterceptFlash(true)
-          setTimeout(() => setInterceptFlash(false), 2400)
-          setLauncherLaunchFx({ active: false, token: 0, thought: '', hostile: false })
+          window.setTimeout(() => setInterceptFlash(false), 2400)
           advanceAfterDelay(2600)
           return
         }
         setFeedback('לא מתאים לטיל הזה. נסה מיירט אחר – אין כאן ניחוש אקראי, צריך התאמה.')
-        setLauncherLaunchFx({ active: false, token: 0, thought: '', hostile: false })
         setWrongShake(true)
         setRoundBlocking(false)
-        setTimeout(() => setWrongShake(false), 500)
+        window.setTimeout(() => setWrongShake(false), 500)
       }, isCorrect ? 820 : 1150)
+      const clearLaunchMs = Math.max(CBT_LAUNCH_FLIGHT_VISUAL_MS, isCorrect ? 820 : 1150)
+      window.setTimeout(() => {
+        setLauncherLaunchFx({ active: false, token: 0, thought: '', hostile: false })
+        if (!CBT_SHOW_LAUNCHER_COMBAT_VIDEO) {
+          setLaunchFlightStyle(undefined)
+        }
+      }, clearLaunchMs)
     },
     [current, phase, roundBlocking, isLauncherSpinning, launcherLaunchFx.active, combatFrozen, advanceAfterDelay]
   )
@@ -612,6 +664,15 @@ export default function App() {
     launcherLaunchFx.active
   ])
 
+  const cycleLauncherThought = useCallback(
+    (delta) => {
+      if (!Array.isArray(choices) || choices.length === 0) return
+      if (roundBlocking || isLauncherSpinning || isLauncherSettling || launcherLaunchFx.active) return
+      setLauncherChoiceIndex((i) => (i + delta + choices.length) % choices.length)
+    },
+    [choices, roundBlocking, isLauncherSpinning, isLauncherSettling, launcherLaunchFx.active]
+  )
+
   const onAimPointerDown = useCallback(
     (e) => {
       if (roundBlocking || launcherLaunchFx.active || !combatFrozen) return
@@ -657,20 +718,47 @@ export default function App() {
         <section className="cbt-panel">
           <h2>איך משחקים?</h2>
           <ul className="cbt-rules">
-            <li>זו סימולציה בסגנון מתח אזורי: על גוף הטיל כתובה <strong>מחשבה לא מועילה</strong>.</li>
+            <li>
+              קודם <strong>בוחרים מצב מהחיים</strong> מהרשימה — תיאור קונקרטי שאפשר להיזדהות איתו; המחשבות על הטיל והמשגר יתאימו אליו.
+            </li>
+            <li>זו סימולציה בסגנון מתח אזורי: על גוף הטיל כתובה <strong>מחשבה לא מועילה</strong> שמתאימה לסיטואציה שבחרת.</li>
             <li>לכל סבב יש <strong>זמן מוגבל</strong> – אם לא תבחר מיירט בזמן, המיירט נופל ומתפוצץ ו<strong>מאבדים נקודה</strong>.</li>
             <li>יירוט נכון ממשגר מוכן = <strong>+1 נקודה</strong>.</li>
             <li>
               <strong>מיירט בייצור עצמי:</strong> כתוב <strong>מחשבה מחליפה במילים שלך</strong> (לא להעתיק מהטיל ולא מאחד המשגרים), לפחות שלוש מילים, ולחץ «יירה מיירט» –{' '}
               <strong>+2 נקודות</strong> (נשמר בשרת).
             </li>
-            <li>שלושה משגרים – כיפת ברזל / חץ – עם מחשבות חלופיות; בחר את ההתאמה לתוכן הטיל.</li>
+            <li>
+              על המשגר מוצגות שלוש מחשבות חלופיות: אחת נכונה למצב שבחרת ושתיים ממצבים אחרים. החצים ליד הטקסט מחליפים ביניהן; לחיצה על הטקסט מגדילה/מקטינה את הגופן. אחרי שבחרת את המחשבה המתאימה — שגרי.
+            </li>
           </ul>
           <p className="cbt-note">
             משחק חשיבה לנוער; אם משהו מעלה אצלך מצוקה – דבר עם מבוגר אמין או עם יועצת בבית הספר.
           </p>
-          <button type="button" className="cbt-primary" onClick={startGame}>
+          <button type="button" className="cbt-primary" onClick={goToSituationPicker}>
             התחלת משחק
+          </button>
+        </section>
+      )}
+
+      {phase === 'choose_situation' && (
+        <section className="cbt-panel cbt-situation-picker">
+          <h2>בחרו מצב מהחיים</h2>
+          <p className="cbt-situation-picker-hint">
+            כל כפתור הוא רגע מהחיים שאפשר להיזדהות איתו — לא כותרת כללית. בחרו מה שקרוב אליכן עכשיו. אחרי הבחירה: טיל עם מחשבה לא מועילה ומשגר עם מחשבות מיירט (כולל שתי
+            הסחות דעת ממצבים אחרים).
+          </p>
+          <ul className="cbt-situation-grid" dir="rtl">
+            {ROUNDS.map((r) => (
+              <li key={r.id}>
+                <button type="button" className="cbt-situation-card" onClick={() => beginSituationRound(r.id)}>
+                  {r.situationText}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button type="button" className="cbt-secondary cbt-situation-back" onClick={() => setPhase('welcome')}>
+            חזרה להנחיות
           </button>
         </section>
       )}
@@ -678,8 +766,12 @@ export default function App() {
       {phase === 'play' && current && (
         <section
           key={`${current.id}-${roundIndex}`}
-          className={`cbt-play cbt-play--compact-bottom ${combatFrozen ? 'cbt-combat-frozen' : ''} ${interceptFlash ? 'cbt-intercept-hit' : ''} ${wrongShake ? 'cbt-shake' : ''} ${interceptCrash ? 'cbt-intercept-crash' : ''} ${launcherLaunchFx.active ? 'cbt-launching' : ''}`}
+          className={`cbt-play cbt-play--compact-bottom ${combatFrozen ? 'cbt-combat-frozen' : ''} ${interceptFlash ? 'cbt-intercept-hit' : ''} ${interceptCrash ? 'cbt-intercept-crash' : ''} ${launcherLaunchFx.active ? 'cbt-launching' : ''}`}
         >
+          <div className="cbt-active-situation" role="status">
+            <span className="cbt-active-situation-label">המצב שבחרת</span>
+            <p className="cbt-active-situation-text">{current.situationText}</p>
+          </div>
           {interceptFlash && (
             <div className="cbt-battle-fx cbt-battle-fx--success" aria-hidden>
               <div className="cbt-collision-meet">
@@ -870,7 +962,7 @@ export default function App() {
           <div className="cbt-play-combat-stack">
           <div className="cbt-launcher-selector">
                 <div
-                  className={`cbt-launcher-tube ${launcherSpinPulse % 2 === 1 ? 'cbt-launcher-tube-spin' : ''} ${isLauncherSpinning ? 'cbt-launcher-tube-active-spin' : ''} ${isLauncherSettling ? 'cbt-launcher-tube-settling' : ''}`}
+                  className={`cbt-launcher-tube ${launcherSpinPulse % 2 === 1 ? 'cbt-launcher-tube-spin' : ''} ${isLauncherSpinning ? 'cbt-launcher-tube-active-spin' : ''} ${isLauncherSettling ? 'cbt-launcher-tube-settling' : ''} ${wrongShake ? 'cbt-shake' : ''}`}
                   aria-live="polite"
                 >
                   <div
@@ -973,6 +1065,7 @@ export default function App() {
                       </div>
                     ) : null}
                     <div
+                      ref={launchDeckAimRef}
                       className={`cbt-launcher-deck-aim ${CBT_SHOW_LAUNCHER_COMBAT_VIDEO ? 'cbt-launcher-deck-aim--combat' : ''}`}
                     >
                     <div
@@ -994,16 +1087,54 @@ export default function App() {
                           className="cbt-launcher-crate-side-panel"
                           style={{ '--cbt-crate-zoom': crateThoughtZoomStep }}
                         >
-                          <button
-                            type="button"
-                            className="cbt-launcher-crate-thought"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setCrateThoughtZoomStep((s) => (s >= CBT_CRATE_ZOOM_MAX ? 0 : s + 1))
-                            }}
-                          >
-                            {activeLauncherThought}
-                          </button>
+                          <div className="cbt-launcher-crate-thought-row" dir="rtl">
+                            <button
+                              type="button"
+                              className="cbt-launcher-crate-nav"
+                              aria-label="מחשבה חלופית קודמת"
+                              disabled={
+                                choices.length < 2 ||
+                                roundBlocking ||
+                                isLauncherSpinning ||
+                                isLauncherSettling ||
+                                launcherLaunchFx.active
+                              }
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                cycleLauncherThought(-1)
+                              }}
+                            >
+                              ‹
+                            </button>
+                            <button
+                              type="button"
+                              className="cbt-launcher-crate-thought"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setCrateThoughtZoomStep((s) => (s >= CBT_CRATE_ZOOM_MAX ? 0 : s + 1))
+                              }}
+                            >
+                              {activeLauncherThought}
+                            </button>
+                            <button
+                              type="button"
+                              className="cbt-launcher-crate-nav"
+                              aria-label="מחשבה חלופית הבאה"
+                              disabled={
+                                choices.length < 2 ||
+                                roundBlocking ||
+                                isLauncherSpinning ||
+                                isLauncherSettling ||
+                                launcherLaunchFx.active
+                              }
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                cycleLauncherThought(1)
+                              }}
+                            >
+                              ›
+                            </button>
+                          </div>
                         </div>
                         <div className="cbt-missile-iron-bundle" aria-hidden>
                           {/* סרט עבה מאוד — כמעט דופן תיבה; קומות צמודות בלי חפיפה */}
@@ -1124,14 +1255,16 @@ export default function App() {
                           <div className="cbt-launch-body" aria-hidden />
                         </div>
                       </div>
-                    ) : (
+                    ) : launcherLaunchFx.active || launchFlightStyle != null ? (
                       <div
                         key={launcherLaunchFx.token || 0}
-                        className={`cbt-launch-flight ${launcherLaunchFx.active ? 'is-active' : ''} ${launcherLaunchFx.hostile ? 'is-hostile' : 'is-intercept'}`}
+                        className={`cbt-launch-flight cbt-launch-flight--world ${launcherLaunchFx.active ? 'is-active' : ''} ${launcherLaunchFx.hostile ? 'is-hostile' : 'is-intercept'}`}
+                        style={launchFlightStyle}
                         aria-hidden
                       >
                         <div className="cbt-launch-muzzle-flash" />
                         <div className="cbt-launch-flame" />
+                        <div className="cbt-launch-booster-trail" aria-hidden />
                         <div className="cbt-launch-pressure-wave" />
                         <div className="cbt-launch-smoke">
                           <span />
@@ -1142,7 +1275,7 @@ export default function App() {
                         </div>
                         <div className="cbt-launch-body" aria-hidden />
                       </div>
-                    )}
+                    ) : null}
                   </div>
                   <div className="cbt-hostile-thought-strip cbt-hostile-thought-strip--minimal">
                     <p className="cbt-hostile-thought-text">{current.hostileThought}</p>
@@ -1193,11 +1326,11 @@ export default function App() {
 
       {phase === 'done' && (
         <section className="cbt-panel cbt-done">
-          <h2>סיימת את כל הסבבים</h2>
+          <h2>סיימת את הסבב</h2>
           <p>
-            ניקוד סופי: <strong>{score}</strong>
+            ניקוד בסבב זה: <strong>{score}</strong>
           </p>
-          <p>כל הכבוד – תרגלת זיהוי של מחשבות קשות ובחירה במחשבות חלופיות מועילות.</p>
+          <p>כל הכבוד – תרגלת זיהוי של מחשבה לא מועילה ובחירה במחשבה חלופית שמתאימה לסיטואציה שבחרת.</p>
           <button
             type="button"
             className="cbt-primary"
@@ -1205,12 +1338,13 @@ export default function App() {
               setPhase('welcome')
               setRoundIndex(0)
               setScore(0)
+              setSelectedSituationId(null)
             }}
           >
             חזרה לפתיחה
           </button>
-          <button type="button" className="cbt-secondary" onClick={startGame}>
-            שוב מאפס
+          <button type="button" className="cbt-secondary" onClick={goToSituationPicker}>
+            סיטואציה אחרת
           </button>
         </section>
       )}

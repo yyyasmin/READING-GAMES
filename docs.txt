@@ -27,13 +27,14 @@
   Database: one DB for both apps (default name: ndfa_games).
   טבלת players: שדות last_subject, last_age_group, last_game_id מתעדכנים בבחירת משחק (Hub READING + Socket register).
   API: /api/health, /api/tasks, /api/players, /api/rooms,
-       /api/game-login-email, /api/cbt-custom-interceptor,
+       /api/game-login-email, /api/cbt-custom-interceptor, /api/cbt-war-rounds,
        /api/admin/connections, /api/admin/tasks, /api/admin/clean-all.
   Socket.IO: NDFA + Ronit + READING memory games (rooms, flip, custom deck).
 
   DATA (קבצים תחת backend/data/):
     game_login_emails.jsonl – בכל התחברות: Socket register, או POST /api/players, או POST /api/game-login-email (CBT).
     cbt_custom_interceptors.jsonl – מיירט עצמי במשחק מלחמה.
+    cbt_war_rounds.json – גיבוי סבבי משחק מלחמה; GET /api/cbt-war-rounds קורא מכאן (אם DB יקרוס). עותק סטטי: CBT/public/data/cbt_war_rounds.json.
 
 ----------------------------------------------------------------------
   Project 1: NDFA-MEMORY-MATCH-GAME

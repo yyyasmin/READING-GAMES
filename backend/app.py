@@ -108,6 +108,24 @@ _DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 _TASKS_JSON = os.path.join(_DATA_DIR, 'tasks.json')
 _CBT_CUSTOM_JSONL = os.path.join(_DATA_DIR, 'cbt_custom_interceptors.jsonl')
 _GAME_LOGIN_EMAILS_JSONL = os.path.join(_DATA_DIR, 'game_login_emails.jsonl')
+_CBT_WAR_ROUNDS_JSON = os.path.join(_DATA_DIR, 'cbt_war_rounds.json')
+
+
+def _load_cbt_war_rounds_from_json_file():
+    """גיבוי סבבי משחק מלחמה (CBT) כשמסד הנתונים לא זמין — קובץ JSON ב־backend/data/."""
+    try:
+        with open(_CBT_WAR_ROUNDS_JSON, 'r', encoding='utf-8') as f:
+            payload = json.load(f)
+        if not isinstance(payload, dict):
+            return None
+        rounds = payload.get('rounds')
+        if isinstance(rounds, list) and len(rounds) > 0:
+            return rounds
+    except OSError as e:
+        print(f'WARNING: cbt_war_rounds.json unreadable: {e}', flush=True)
+    except (json.JSONDecodeError, TypeError, ValueError) as e:
+        print(f'WARNING: cbt_war_rounds.json invalid: {e}', flush=True)
+    return None
 
 
 def _append_game_login_email_to_data(
@@ -247,6 +265,28 @@ def cbt_custom_interceptor():
         return jsonify({'error': f'כתיבה לקובץ נכשלה: {e}'}), 500
     return jsonify({'ok': True})
 
+
+@app.route('/api/cbt-war-rounds', methods=['GET'])
+def get_cbt_war_rounds():
+    """סבבי משחק מלחמה — נטען מקובץ גיבוי JSON; בעתיד ניתן להעדיף DB וליפול לכאן."""
+    rounds = _load_cbt_war_rounds_from_json_file()
+    if rounds is None:
+        return jsonify({
+            'error': 'נתוני סבבים לא זמינים (חסר או פגום קובץ data/cbt_war_rounds.json).',
+            'rounds': []
+        }), 503
+    subject = (request.args.get('subject') or '').strip() or None
+    if subject:
+        has_subject = any(
+            isinstance(r, dict) and (str(r.get('subject') or '').strip())
+            for r in rounds
+        )
+        if has_subject:
+            rounds = [
+                r for r in rounds
+                if isinstance(r, dict) and (str(r.get('subject') or '').strip() == subject)
+            ]
+    return jsonify({'rounds': rounds})
 
 @app.route('/api/game-login-email', methods=['POST'])
 def game_login_email():
