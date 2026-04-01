@@ -150,6 +150,7 @@ export default function App() {
   const [combatFrozen, setCombatFrozen] = useState(false)
   const [crateThoughtZoomStep, setCrateThoughtZoomStep] = useState(0)
   const [launchFlightStyle, setLaunchFlightStyle] = useState(undefined)
+  const [isMenuOpen, setIsMenuOpen] = useState(false)
 
   const combatFrameRef = useRef(null)
   const launchDeckAimRef = useRef(null)
@@ -198,6 +199,14 @@ export default function App() {
       return !was
     })
   }, [roundBlocking, launcherLaunchFx.active])
+  const openSituationPicker = useCallback(() => {
+    setPhase('choose_situation')
+    setIsMenuOpen(false)
+  }, [])
+
+  const resumePlay = useCallback(() => {
+    setIsMenuOpen(false)
+  }, [])
 
   const playSessionRounds = useMemo(() => {
     if (!selectedSituationId) return []
@@ -801,6 +810,37 @@ export default function App() {
         </header>
       )}
 
+      <div className={`cbt-side-menu-toggle ${isMenuOpen ? 'is-open' : ''}`}>
+        <button
+          type="button"
+          className="cbt-menu-button"
+          onClick={() => setIsMenuOpen((v) => !v)}
+        >
+          ☰
+        </button>
+        <div className={`cbt-side-menu ${isMenuOpen ? 'cbt-side-menu--open' : ''}`}>
+          <p className="cbt-side-score">
+            ניקוד: <strong>{score}</strong>
+          </p>
+          <button
+            type="button"
+            className="cbt-side-item"
+            onClick={openSituationPicker}
+          >
+            סיטואציה חדשה
+          </button>
+          {phase === 'play' && (
+            <button
+              type="button"
+              className="cbt-side-item"
+              onClick={resumePlay}
+            >
+              המשך משחק
+            </button>
+          )}
+        </div>
+      </div>
+
       {phase === 'welcome' && (
         <section className="cbt-panel">
           <h2>איך משחקים?</h2>
@@ -844,9 +884,6 @@ export default function App() {
               </li>
             ))}
           </ul>
-          <button type="button" className="cbt-secondary cbt-situation-back" onClick={() => setPhase('welcome')}>
-            חזרה להנחיות
-          </button>
         </section>
       )}
 
@@ -855,6 +892,10 @@ export default function App() {
           key={`${current.id}-${roundIndex}`}
           className={`cbt-play cbt-play--compact-bottom ${combatFrozen ? 'cbt-combat-frozen' : ''} ${interceptFlash ? 'cbt-intercept-hit' : ''} ${interceptCrash ? 'cbt-intercept-crash' : ''} ${launcherLaunchFx.active ? 'cbt-launching' : ''}`}
         >
+          <p className="cbt-launcher-aim-hint">
+            <strong>חיצים</strong> – כיוון טילים · <strong>רווח</strong> – עצירת תמונה · <strong>שגר</strong> – שיגור מיירט ·{' '}
+            <strong>סיטואציה חדשה / המשך</strong> – דרך תפריט ☰ בצד.
+          </p>
           <div className="cbt-active-situation" role="status">
             <span className="cbt-active-situation-label">המצב שבחרת</span>
             <p className="cbt-active-situation-text">{current.situationText}</p>
