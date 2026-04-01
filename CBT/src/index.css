@@ -1519,8 +1519,8 @@ body {
   overflow: visible;
 }
 
-/* שיגור מיירט מוצג מימין־תחתון (ליד המשגר בתמונה) */
-.cbt-photo-wrap--enemy-sky-only .cbt-launch-flight {
+/* שיגור מיירט סטטי (לא מסלול במרחב) – מוצג מימין־תחתון (ליד המשגר בתמונה) */
+.cbt-photo-wrap--enemy-sky-only .cbt-launch-flight:not(.cbt-launch-flight--world) {
   display: block;
   left: auto;
   right: 4%;
@@ -1530,18 +1530,18 @@ body {
   transform-origin: 50% 100%;
 }
 
-.cbt-photo-wrap--enemy-sky-only .cbt-launch-flight.is-hostile {
+.cbt-photo-wrap--enemy-sky-only .cbt-launch-flight:not(.cbt-launch-flight--world).is-hostile {
   left: auto;
   right: 4%;
   bottom: 3%;
   transform: translateX(0);
 }
 
-.cbt-photo-wrap--enemy-sky-only .cbt-launch-flight.is-active {
+.cbt-photo-wrap--enemy-sky-only .cbt-launch-flight:not(.cbt-launch-flight--world).is-active {
   animation: cbt-launch-flight-rise-br 1.05s cubic-bezier(0.18, 0.82, 0.25, 1) forwards;
 }
 
-.cbt-photo-wrap--enemy-sky-only .cbt-launch-flight.is-active.is-hostile {
+.cbt-photo-wrap--enemy-sky-only .cbt-launch-flight:not(.cbt-launch-flight--world).is-active.is-hostile {
   animation: cbt-launch-flight-hostile-br 0.82s cubic-bezier(0.18, 0.92, 0.25, 1) forwards;
 }
 
@@ -2641,6 +2641,13 @@ body {
   transform: perspective(680px) rotateY(-11deg) rotateX(4deg);
   transform-style: preserve-3d;
   pointer-events: none;
+}
+
+/* אחרי שיגור: המיירט האמצעי בשורה הקדמית "נמשך" החוצה מהארגז (נעלם מהבאנדל) */
+.cbt-launcher-bay--fired .cbt-single-missile-row--front .cbt-single-missile-wrap:nth-child(2) {
+  opacity: 0;
+  transform: perspective(680px) rotateY(-11deg) rotateX(4deg) translateY(40px) scale(0.82);
+  transition: opacity 0.18s ease-out, transform 0.18s ease-out;
 }
 
 .cbt-single-missile-body {

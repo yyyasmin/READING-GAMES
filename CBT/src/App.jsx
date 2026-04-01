@@ -63,8 +63,8 @@ function normalizeAngle360(deg) {
 /** כמה שלבי זום לטקסט מחשבה על הארגז (לחיצה = +1, אחרי המקסימום חוזר ל־0) */
 const CBT_CRATE_ZOOM_MAX = 10
 
-const CBT_LAUNCHER_AIM_TOLERANCE_DEG = 22
-const CBT_LAUNCHER_PITCH_TOLERANCE_DEG = 14
+const CBT_LAUNCHER_AIM_TOLERANCE_DEG = 90
+const CBT_LAUNCHER_PITCH_TOLERANCE_DEG = 45
 const CBT_LAUNCHER_PITCH_MIN = -34
 const CBT_LAUNCHER_PITCH_MAX = 34
 
@@ -88,14 +88,15 @@ function pitchDegFromClientY(wr, clientY) {
   return clampLauncherPitchDeg(clamped * CBT_LAUNCHER_PITCH_MAX)
 }
 
-/** מסלול מיירט במרחב הפריים – מבסיס המשגר אל מרכז טיל האויב, או לכיוון השחקן (מיירט «עוין»). */
+/** מסלול מיירט במרחב הפריים – מטיל מתוך הארגז אל מרכז טיל האויב, או לכיוון השחקן (מיירט «עוין»). */
 function computeLaunchFlightWorldStyle(wrapEl, deckEl, rocketEl, flyTowardPlayer) {
   if (!wrapEl || !deckEl || !rocketEl) return null
   const wr = wrapEl.getBoundingClientRect()
   const dr = deckEl.getBoundingClientRect()
   const rr = rocketEl.getBoundingClientRect()
+  // בסיס הטיל מתוך הארגז: מרכז הטיל בשורה הקדמית, מעט מעל תחתיתו
   const mx = dr.left + dr.width * 0.5
-  const my = dr.top + dr.height * 0.88
+  const my = dr.bottom - dr.height * 0.12
   let tx = rr.left + rr.width * 0.5
   let ty = rr.top + rr.height * 0.45
   if (flyTowardPlayer) {
@@ -106,7 +107,8 @@ function computeLaunchFlightWorldStyle(wrapEl, deckEl, rocketEl, flyTowardPlayer
   const dy = ty - my
   const leftPct = ((mx - wr.left) / Math.max(wr.width, 1)) * 100
   const topPct = ((my - wr.top) / Math.max(wr.height, 1)) * 100
-  const angleDeg = (Math.atan2(dx, -dy) * 180) / Math.PI
+  // זווית הטיל: וקטור מהמיירט מעלה־אל היעד (atan2 על dy, dx)
+  const angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI
   return {
     left: `${leftPct}%`,
     top: `${topPct}%`,
@@ -152,6 +154,7 @@ export default function App() {
   const combatFrameRef = useRef(null)
   const launchDeckAimRef = useRef(null)
   const enemyRocketRef = useRef(null)
+  const crateMissileRef = useRef(null)
   const missileBearingRef = useRef(0)
   const missilePitchRef = useRef(0)
   const launcherAimDegRef = useRef(0)
@@ -361,6 +364,15 @@ export default function App() {
     return () => cancelAnimationFrame(id)
   }, [phase, roundIndex, current?.id, syncLauncherAimToMissile])
 
+  /** ברגע ההקפאה הטיל כבר זז מהמצב הראשון — מיישרים משגר לכיוון הטיל בשכבה הקפואה (אחרת בדיקת הכוונה נכשלת ושיגור לא מתרחש). */
+  useEffect(() => {
+    if (phase !== 'play' || !combatFrozen) return undefined
+    const id = requestAnimationFrame(() => {
+      syncLauncherAimToMissile()
+    })
+    return () => cancelAnimationFrame(id)
+  }, [combatFrozen, phase, syncLauncherAimToMissile])
+
   useEffect(() => {
     if (phase !== 'play' || !current || roundBlocking) return undefined
 
@@ -485,54 +497,63 @@ export default function App() {
           return
         }
       }
-      const nowToken = Date.now()
+      // אחרי בדיקות כיוון – יציאה ממצב הקפאה כדי לראות תנועת שיגור מלאה
+      if (combatFrozen) {
+        toggleCombatFreeze()
+      }
       const isCorrect = text === current.balancedThought
       const hostile = !isCorrect
-      const flightStyle = CBT_SHOW_LAUNCHER_COMBAT_VIDEO
-        ? undefined
-        : computeLaunchFlightWorldStyle(
-            combatFrameRef.current,
-            launchDeckAimRef.current,
-            enemyRocketRef.current,
-            hostile
-          )
-      if (!CBT_SHOW_LAUNCHER_COMBAT_VIDEO && flightStyle == null) {
-        setFeedback('לא ניתן לחשב מסלול שיגור (אלמנטי המסך חסרים). רענן את הדף ונסה שוב.')
-        return
-      }
-      if (!CBT_SHOW_LAUNCHER_COMBAT_VIDEO) {
-        setLaunchFlightStyle(flightStyle)
-      }
-      setRoundBlocking(true)
-      setLauncherLaunchFx({ active: true, token: nowToken, thought: text, hostile })
-      window.setTimeout(() => {
-        if (isCorrect) {
-          timeoutFiredRef.current = true
-          setScore((s) => s + 1)
-          setFeedback('יירוט מוצלח! +1 נקודה.')
-          setInterceptFlash(true)
-          window.setTimeout(() => setInterceptFlash(false), 2400)
-          advanceAfterDelay(2600)
-          return
-        }
-        setFeedback('לא מתאים לטיל הזה. נסה מיירט אחר – אין כאן ניחוש אקראי, צריך התאמה.')
-        setWrongShake(true)
-        setRoundBlocking(false)
-        window.setTimeout(() => setWrongShake(false), 500)
-      }, isCorrect ? 820 : 1150)
-      const clearLaunchMs = Math.max(CBT_LAUNCH_FLIGHT_VISUAL_MS, isCorrect ? 820 : 1150)
-      window.setTimeout(() => {
-        setLauncherLaunchFx({ active: false, token: 0, thought: '', hostile: false })
-        if (!CBT_SHOW_LAUNCHER_COMBAT_VIDEO) {
-          setLaunchFlightStyle(undefined)
-        }
-      }, clearLaunchMs)
+      /** שני rAF אחרי לייאאוט — מסלול השיגור מחושב לפי getBoundingClientRect של הארגז והטיל */
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const flightStyle = CBT_SHOW_LAUNCHER_COMBAT_VIDEO
+            ? undefined
+            : computeLaunchFlightWorldStyle(
+                combatFrameRef.current,
+                crateMissileRef.current || launchDeckAimRef.current,
+                enemyRocketRef.current,
+                hostile
+              )
+          if (!CBT_SHOW_LAUNCHER_COMBAT_VIDEO && flightStyle == null) {
+            setFeedback('לא ניתן לחשב מסלול שיגור (אלמנטי המסך חסרים). רענן את הדף ונסה שוב.')
+            return
+          }
+          const nowToken = Date.now()
+          if (!CBT_SHOW_LAUNCHER_COMBAT_VIDEO) {
+            setLaunchFlightStyle(flightStyle)
+          }
+          setRoundBlocking(true)
+          setLauncherLaunchFx({ active: true, token: nowToken, thought: text, hostile })
+          window.setTimeout(() => {
+            if (isCorrect) {
+              timeoutFiredRef.current = true
+              setScore((s) => s + 1)
+              setFeedback('יירוט מוצלח! +1 נקודה.')
+              setInterceptFlash(true)
+              window.setTimeout(() => setInterceptFlash(false), 2400)
+              advanceAfterDelay(2600)
+              return
+            }
+            setFeedback('לא מתאים לטיל הזה. נסה מיירט אחר – אין כאן ניחוש אקראי, צריך התאמה.')
+            setWrongShake(true)
+            setRoundBlocking(false)
+            window.setTimeout(() => setWrongShake(false), 500)
+          }, isCorrect ? 820 : 1150)
+          const clearLaunchMs = Math.max(CBT_LAUNCH_FLIGHT_VISUAL_MS, isCorrect ? 820 : 1150)
+          window.setTimeout(() => {
+            setLauncherLaunchFx({ active: false, token: 0, thought: '', hostile: false })
+            if (!CBT_SHOW_LAUNCHER_COMBAT_VIDEO) {
+              setLaunchFlightStyle(undefined)
+            }
+          }, clearLaunchMs)
+        })
+      })
     },
-    [current, phase, roundBlocking, isLauncherSpinning, launcherLaunchFx.active, combatFrozen, advanceAfterDelay]
+    [current, phase, roundBlocking, isLauncherSpinning, launcherLaunchFx.active, combatFrozen, toggleCombatFreeze, advanceAfterDelay]
   )
 
   const onFireCustom = useCallback(async () => {
-    if (!current || phase !== 'play' || roundBlocking) return
+    if (!current || phase !== 'play' || roundBlocking || isLauncherSpinning || launcherLaunchFx.active) return
     const typed = normalizeThought(customInterceptorText)
     if (typed.length === 0) {
       setFeedback('חובה לכתוב מחשבה חלופית משלך על המיירט לפני היירוט.')
@@ -593,6 +614,48 @@ export default function App() {
       }
     }
 
+    if (combatFrozen) {
+      toggleCombatFreeze()
+    }
+
+    const clearLaunchVisual = () => {
+      setLauncherLaunchFx({ active: false, token: 0, thought: '', hostile: false })
+      if (!CBT_SHOW_LAUNCHER_COMBAT_VIDEO) {
+        setLaunchFlightStyle(undefined)
+      }
+    }
+
+    const launchVisualOk = await new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const flightStyle = CBT_SHOW_LAUNCHER_COMBAT_VIDEO
+            ? undefined
+            : computeLaunchFlightWorldStyle(
+                combatFrameRef.current,
+                crateMissileRef.current || launchDeckAimRef.current,
+                enemyRocketRef.current,
+                false
+              )
+          if (!CBT_SHOW_LAUNCHER_COMBAT_VIDEO && flightStyle == null) {
+            setFeedback('לא ניתן לחשב מסלול שיגור (אלמנטי המסך חסרים). רענן את הדף ונסה שוב.')
+            resolve(false)
+            return
+          }
+          const nowToken = Date.now()
+          if (!CBT_SHOW_LAUNCHER_COMBAT_VIDEO) {
+            setLaunchFlightStyle(flightStyle)
+          }
+          setLauncherLaunchFx({ active: true, token: nowToken, thought: typed, hostile: false })
+          window.setTimeout(() => {
+            clearLaunchVisual()
+          }, CBT_LAUNCH_FLIGHT_VISUAL_MS)
+          resolve(true)
+        })
+      })
+    })
+
+    if (!launchVisualOk) return
+
     setRoundBlocking(true)
     timeoutFiredRef.current = true
     try {
@@ -616,6 +679,7 @@ export default function App() {
       if (!res.ok) {
         setRoundBlocking(false)
         timeoutFiredRef.current = false
+        clearLaunchVisual()
         const errMsg =
           typeof payload.error === 'string' ? payload.error : `שמירה נכשלה (${res.status})`
         setFeedback(errMsg)
@@ -631,11 +695,34 @@ export default function App() {
     } catch (_) {
       setRoundBlocking(false)
       timeoutFiredRef.current = false
+      clearLaunchVisual()
       setFeedback('שגיאת רשת – לא נשמרו הנתונים לשרת.')
       setWrongShake(true)
       setTimeout(() => setWrongShake(false), 500)
     }
-  }, [current, phase, roundBlocking, combatFrozen, customInterceptorText, advanceAfterDelay, urlParams, choices])
+  }, [
+    current,
+    phase,
+    roundBlocking,
+    launcherLaunchFx.active,
+    isLauncherSpinning,
+    combatFrozen,
+    toggleCombatFreeze,
+    customInterceptorText,
+    advanceAfterDelay,
+    urlParams,
+    choices
+  ])
+
+  /** כפתור יחיד «שגר»: טקסט חופשי בשדה → מיירט מותאם; אחרת → המחשבה מהארגז */
+  const onLaunchPress = useCallback(() => {
+    const typed = normalizeThought(customInterceptorText)
+    if (typed.length > 0) {
+      void onFireCustom()
+    } else {
+      onPick(activeLauncherThought)
+    }
+  }, [customInterceptorText, onFireCustom, onPick, activeLauncherThought])
 
   const rotateLauncher = useCallback(() => {
     if (!Array.isArray(choices) || choices.length === 0 || roundBlocking || isLauncherSettling || launcherLaunchFx.active) return
@@ -1082,7 +1169,11 @@ export default function App() {
                     >
                     <div className="cbt-launcher-turntable-base" aria-hidden />
                     <div className={`cbt-launcher-deck ${isLauncherSpinning ? 'is-spinning' : ''} ${isLauncherSettling ? 'is-settling' : ''}`}>
-                      <div className={`cbt-launcher-bay cbt-launcher-bay--cube ${isLauncherSpinning ? 'is-spinning' : ''} ${isLauncherSettling ? 'is-settling' : ''}`}>
+                      <div
+                        className={`cbt-launcher-bay cbt-launcher-bay--cube ${isLauncherSpinning ? 'is-spinning' : ''} ${
+                          isLauncherSettling ? 'is-settling' : ''
+                        } ${launcherLaunchFx.active && !launcherLaunchFx.hostile ? 'cbt-launcher-bay--fired' : ''}`}
+                      >
                         <div
                           className="cbt-launcher-crate-side-panel"
                           style={{ '--cbt-crate-zoom': crateThoughtZoomStep }}
@@ -1192,7 +1283,11 @@ export default function App() {
                           </div>
                           <div className="cbt-single-missile-row cbt-single-missile-row--front">
                             {[0, 1, 2].map((i) => (
-                              <div key={`f-${i}`} className="cbt-single-missile-wrap">
+                              <div
+                                key={`f-${i}`}
+                                ref={i === 1 ? crateMissileRef : null}
+                                className="cbt-single-missile-wrap"
+                              >
                                 <span className="cbt-single-missile-body" />
                                 <span className="cbt-single-missile-nose" />
                                 <span className="cbt-single-missile-fin cbt-single-missile-fin--l" />
@@ -1294,8 +1389,14 @@ export default function App() {
               <button
                 type="button"
                 className="cbt-primary cbt-launch-now-btn"
-                disabled={roundBlocking || !activeLauncherThought || isLauncherSpinning || launcherLaunchFx.active || !combatFrozen}
-                onClick={() => onPick(activeLauncherThought)}
+                disabled={
+                  roundBlocking ||
+                  isLauncherSpinning ||
+                  launcherLaunchFx.active ||
+                  !combatFrozen ||
+                  (!activeLauncherThought && normalizeThought(customInterceptorText).length === 0)
+                }
+                onClick={onLaunchPress}
               >
                 שגר
               </button>
@@ -1312,14 +1413,6 @@ export default function App() {
               disabled={roundBlocking}
               placeholder=""
             />
-            <button
-              type="button"
-              className="cbt-primary cbt-fire-custom"
-              disabled={roundBlocking || !combatFrozen}
-              onClick={onFireCustom}
-            >
-              יירה
-            </button>
           </div>
         </section>
       )}
