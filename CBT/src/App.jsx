@@ -373,15 +373,6 @@ export default function App() {
     return () => cancelAnimationFrame(id)
   }, [phase, roundIndex, current?.id, syncLauncherAimToMissile])
 
-  /** ברגע ההקפאה הטיל כבר זז מהמצב הראשון — מיישרים משגר לכיוון הטיל בשכבה הקפואה (אחרת בדיקת הכוונה נכשלת ושיגור לא מתרחש). */
-  useEffect(() => {
-    if (phase !== 'play' || !combatFrozen) return undefined
-    const id = requestAnimationFrame(() => {
-      syncLauncherAimToMissile()
-    })
-    return () => cancelAnimationFrame(id)
-  }, [combatFrozen, phase, syncLauncherAimToMissile])
-
   useEffect(() => {
     if (phase !== 'play' || !current || roundBlocking) return undefined
 
@@ -506,10 +497,6 @@ export default function App() {
           return
         }
       }
-      // אחרי בדיקות כיוון – יציאה ממצב הקפאה כדי לראות תנועת שיגור מלאה
-      if (combatFrozen) {
-        toggleCombatFreeze()
-      }
       const isCorrect = text === current.balancedThought
       const hostile = !isCorrect
       /** שני rAF אחרי לייאאוט — מסלול השיגור מחושב לפי getBoundingClientRect של הארגז והטיל */
@@ -558,7 +545,7 @@ export default function App() {
         })
       })
     },
-    [current, phase, roundBlocking, isLauncherSpinning, launcherLaunchFx.active, combatFrozen, toggleCombatFreeze, advanceAfterDelay]
+    [current, phase, roundBlocking, isLauncherSpinning, launcherLaunchFx.active, combatFrozen, advanceAfterDelay]
   )
 
   const onFireCustom = useCallback(async () => {
@@ -621,10 +608,6 @@ export default function App() {
         setTimeout(() => setWrongShake(false), 500)
         return
       }
-    }
-
-    if (combatFrozen) {
-      toggleCombatFreeze()
     }
 
     const clearLaunchVisual = () => {
@@ -716,7 +699,6 @@ export default function App() {
     launcherLaunchFx.active,
     isLauncherSpinning,
     combatFrozen,
-    toggleCombatFreeze,
     customInterceptorText,
     advanceAfterDelay,
     urlParams,
