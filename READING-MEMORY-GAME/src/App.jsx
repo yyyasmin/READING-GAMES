@@ -217,7 +217,9 @@ const DEFAULT_EXTERNAL_GAME_BASE = {
   VITE_MATH_ENGLISH_GAME_URL: '/math-english/',
   VITE_NDFA_GAME_URL: '/ndfa/',
   VITE_RONIT_GAME_URL: '/ronit/',
-  VITE_CBT_GAME_URL: '/cbt/'
+  VITE_CBT_GAME_URL: '/cbt/',
+  VITE_SOCCER_GAME_URL: '/soccer/',
+  VITE_SOCCER_BOARD_GAME_URL: '/soccer-board/'
 }
 
 function externalGameBaseUrl(envKey) {
@@ -311,6 +313,24 @@ const GAME_CATALOG = [
     ageGroups: ['middleschool', 'highschool'],
     launchType: 'external',
     urlEnvKey: 'VITE_CBT_GAME_URL'
+  },
+  {
+    id: 'soccer',
+    title: 'כדורגל — מחשבות במגרש',
+    icon: '⚽',
+    subject: 'cbt_youth_soccer',
+    ageGroups: ['middleschool', 'highschool'],
+    launchType: 'external',
+    urlEnvKey: 'VITE_SOCCER_GAME_URL'
+  },
+  {
+    id: 'soccer_board',
+    title: 'כדורגל העצמה',
+    icon: '⭐',
+    subject: 'cbt_youth_soccer_empowerment',
+    ageGroups: ['middleschool', 'highschool'],
+    launchType: 'external',
+    urlEnvKey: 'VITE_SOCCER_BOARD_GAME_URL'
   }
 ]
 
@@ -892,7 +912,7 @@ function App() {
     }
     const launchUrl = buildExternalGameLaunchUrl(game, selectedAgeGroup, em, nick)
     if (!launchUrl) {
-      setError(`לא ניתן לפתוח את «${game.title}». ודאו גיל, אימייל ושם; אם זה משחק חיצוני — שהנתיב קיים באתר (ברירת מחדל: /ndfa/, /ronit/, /cbt/).`)
+      setError(`לא ניתן לפתוח את «${game.title}». ודאו גיל, אימייל ושם; אם זה משחק חיצוני — שהנתיב קיים באתר (ברירת מחדל: /ndfa/, /ronit/, /cbt/, /soccer/, /soccer-board/).`)
       return
     }
     setLastPlayedGameId(game.id)

@@ -1,4 +1,4 @@
-# Single static site: main menu at / + games under /ndfa, /ronit, /cbt, /math-english
+# Single static site: main menu at / + games under /ndfa, /ronit, /cbt, /soccer, /soccer-board, /soccer-empower, /math-english
 # Backend (Python + Postgres) is NOT on Netlify — host it elsewhere and point the frontends at it.
 
 [build]
@@ -14,7 +14,7 @@
 #   Key                  Value example
 #   VITE_BACKEND_URL     https://ndfa-memory-match-game.onrender.com
 #
-# You do NOT need VITE_NDFA_GAME_URL, VITE_RONIT_GAME_URL, VITE_CBT_GAME_URL, VITE_MATH_ENGLISH_GAME_URL
+# You do NOT need VITE_NDFA_GAME_URL, VITE_RONIT_GAME_URL, VITE_CBT_GAME_URL, VITE_SOCCER_GAME_URL, VITE_SOCCER_BOARD_GAME_URL, VITE_SOCCER_EMPOWER_GAME_URL, VITE_MATH_ENGLISH_GAME_URL
 # unless you want to override the built-in path defaults.
 
 # Optional: proxy /api and /socket.io through Netlify to the backend (same origin).

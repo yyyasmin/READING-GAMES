@@ -1,5 +1,5 @@
 /**
- * One static site: hub at / + games under /ndfa, /ronit, /cbt, (optional) /math-english
+ * One static site: hub at / + games under /ndfa, /ronit, /cbt, /soccer, /soccer-board, /soccer-empower, (optional) /math-english
  * Run from repo root: npm run build  → output in ./publish
  *
  * Local dev uses Vite proxies; production uses VITE_* env (see netlify.toml comments).
@@ -36,7 +36,10 @@ cpSync(join(hub, 'dist'), publish, { recursive: true })
 const apps = [
   { dir: 'NDFA-MEMORY-MATCH-GAME', base: '/ndfa/', sub: 'ndfa' },
   { dir: 'RONIT-MEMORY-GAME', base: '/ronit/', sub: 'ronit' },
-  { dir: 'CBT', base: null, sub: 'cbt' }
+  { dir: 'CBT', base: null, sub: 'cbt' },
+  { dir: 'SOCCER-GAME', base: null, sub: 'soccer' },
+  { dir: 'SOCCER-CBT-BOARD-GAME', base: null, sub: 'soccer-board' },
+  { dir: 'SOCCER-EMPOWERMENT-GAME', base: null, sub: 'soccer-empower' }
 ]
 
 for (const app of apps) {
@@ -58,7 +61,10 @@ for (const app of apps) {
 const redirects = [
   '/ndfa/* /ndfa/index.html 200',
   '/ronit/* /ronit/index.html 200',
-  '/cbt/* /cbt/index.html 200'
+  '/cbt/* /cbt/index.html 200',
+  '/soccer/* /soccer/index.html 200',
+  '/soccer-board/* /soccer-board/index.html 200',
+  '/soccer-empower/* /soccer-empower/index.html 200'
 ]
 
 const mathEnglish = join(root, 'MATH-ENGLISH-GAMES')
@@ -79,7 +85,7 @@ writeFileSync(join(publish, '_redirects'), redirects.join('\n') + '\n')
 
 console.log('\n✓ Build finished. Deploy folder:', publish)
 console.log(
-  '  Set Netlify env for hub build: VITE_BACKEND_URL, VITE_NDFA_GAME_URL=/ndfa/, VITE_RONIT_GAME_URL=/ronit/, VITE_CBT_GAME_URL=/cbt/'
+  '  Set Netlify env for hub build: VITE_BACKEND_URL, VITE_NDFA_GAME_URL=/ndfa/, VITE_RONIT_GAME_URL=/ronit/, VITE_CBT_GAME_URL=/cbt/, VITE_SOCCER_GAME_URL=/soccer/, VITE_SOCCER_BOARD_GAME_URL=/soccer-board/, VITE_SOCCER_EMPOWER_GAME_URL=/soccer-empower/'
 )
 if (!existsSync(mathAppJsx)) {
   console.log('  (Omit VITE_MATH_ENGLISH_GAME_URL until MATH-ENGLISH-GAMES has App.jsx)\n')

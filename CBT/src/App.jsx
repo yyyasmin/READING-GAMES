@@ -551,8 +551,8 @@ export default function App() {
   const onFireCustom = useCallback(async () => {
     if (!current || phase !== 'play' || roundBlocking || isLauncherSpinning || launcherLaunchFx.active) return
     const typed = normalizeThought(customInterceptorText)
-    if (typed.length === 0) {
-      setFeedback('חובה לכתוב מחשבה חלופית משלך על המיירט לפני היירוט.')
+      if (typed.length === 0) {
+      setFeedback('כתוב טקסט למיירט לפני השיגור.')
       setWrongShake(true)
       setTimeout(() => setWrongShake(false), 500)
       return
@@ -566,7 +566,7 @@ export default function App() {
 
     const words = typed.split(/\s+/).filter(Boolean)
     if (words.length < 3) {
-      setFeedback('כתוב לפחות שלוש מילים – משפט מלא של מחשבה מחליפה מקורית שלך, לא עותק.')
+      setFeedback('כתוב לפחות שלוש מילים.')
       setWrongShake(true)
       setTimeout(() => setWrongShake(false), 500)
       return
@@ -575,13 +575,9 @@ export default function App() {
     const choiceNorms = choices.map((t) => normalizeThought(t))
     if (!isOwnInterceptorWording(typed, hostileN, choiceNorms)) {
       if (typed === hostileN) {
-        setFeedback(
-          'זה אותו ניסוח כמו על הטיל. המצא מחשבה **מחליפה משלך** – לא להעתיק את המחשבה הלא מועילה.'
-        )
+        setFeedback('אותו משפט כמו על הטיל — נסו ניסוח אחר.')
       } else {
-        setFeedback(
-          'לא להעתיק ניסוח מאחד משלושת המשגרים. כתוב במילים שלך מחשבה מחליפה שמתאימה לרוח של יירוט הטיל הזה.'
-        )
+        setFeedback('אל תעתיקו מהמשגרים — כתבו משפט אחר במילים שלכם.')
       }
       setWrongShake(true)
       setTimeout(() => setWrongShake(false), 500)
@@ -828,22 +824,14 @@ export default function App() {
           <h2>איך משחקים?</h2>
           <ul className="cbt-rules">
             <li>
-              קודם <strong>בוחרים מצב מהחיים</strong> מהרשימה — תיאור קונקרטי שאפשר להיזדהות איתו; המחשבות על הטיל והמשגר יתאימו אליו.
-            </li>
-            <li>זו סימולציה בסגנון מתח אזורי: על גוף הטיל כתובה <strong>מחשבה לא מועילה</strong> שמתאימה לסיטואציה שבחרת.</li>
-            <li>לכל סבב יש <strong>זמן מוגבל</strong> – אם לא תבחר מיירט בזמן, המיירט נופל ומתפוצץ ו<strong>מאבדים נקודה</strong>.</li>
-            <li>יירוט נכון ממשגר מוכן = <strong>+1 נקודה</strong>.</li>
-            <li>
-              <strong>מיירט בייצור עצמי:</strong> כתוב <strong>מחשבה מחליפה במילים שלך</strong> (לא להעתיק מהטיל ולא מאחד המשגרים), לפחות שלוש מילים, ולחץ «יירה מיירט» –{' '}
-              <strong>+2 נקודות</strong> (נשמר בשרת).
+              קודם <strong>בוחרים סיטואציה</strong> מהרשימה.
             </li>
             <li>
-              על המשגר מוצגות שלוש מחשבות חלופיות: אחת נכונה למצב שבחרת ושתיים ממצבים אחרים. החצים ליד הטקסט מחליפים ביניהן; לחיצה על הטקסט מגדילה/מקטינה את הגופן. אחרי שבחרת את המחשבה המתאימה — שגרי.
+              <strong>רווח</strong> מקפיא את התמונה. בזמן הקפאה מכוונים עם <strong>חיצים</strong> ואז לוחצים <strong>שגר</strong>.
             </li>
+            <li>בחרו את המשפט הנכון על הארגז (החצים ליד הטקסט מחליפים בין משפטים), ואז שגרו.</li>
+            <li>ניקוד מוצג בתפריט ☰ בצד.</li>
           </ul>
-          <p className="cbt-note">
-            משחק חשיבה לנוער; אם משהו מעלה אצלך מצוקה – דבר עם מבוגר אמין או עם יועצת בבית הספר.
-          </p>
           <button type="button" className="cbt-primary" onClick={goToSituationPicker}>
             התחלת משחק
           </button>
@@ -854,8 +842,7 @@ export default function App() {
         <section className="cbt-panel cbt-situation-picker">
           <h2>בחרו מצב מהחיים</h2>
           <p className="cbt-situation-picker-hint">
-            כל כפתור הוא רגע מהחיים שאפשר להיזדהות איתו — לא כותרת כללית. בחרו מה שקרוב אליכן עכשיו. אחרי הבחירה: טיל עם מחשבה לא מועילה ומשגר עם מחשבות מיירט (כולל שתי
-            הסחות דעת ממצבים אחרים).
+            בחרו סיטואציה כדי להתחיל.
           </p>
           <ul className="cbt-situation-grid" dir="rtl">
             {ROUNDS.map((r) => (
@@ -1446,7 +1433,7 @@ export default function App() {
           <p>
             ניקוד בסבב זה: <strong>{score}</strong>
           </p>
-          <p>כל הכבוד – תרגלת זיהוי של מחשבה לא מועילה ובחירה במחשבה חלופית שמתאימה לסיטואציה שבחרת.</p>
+          <p>כל הכבוד! בחרו סיטואציה חדשה כדי לשחק שוב.</p>
           <button
             type="button"
             className="cbt-primary"

@@ -3,6 +3,32 @@ from datetime import datetime
 
 db = SQLAlchemy()
 
+class CbtScenario(db.Model):
+    __tablename__ = 'cbt_scenarios'
+    id = db.Column(db.Integer, primary_key=True)
+    game_key = db.Column(db.String(40), nullable=False, index=True)  # e.g. 'war', 'soccer'
+    scenario_key = db.Column(db.String(120), nullable=False, index=True)  # e.g. round id / situation id
+    subject = db.Column(db.String(80), nullable=True, index=True)
+    payload_json = db.Column(db.Text, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    __table_args__ = (
+        db.UniqueConstraint('game_key', 'scenario_key', name='uq_cbt_scenarios_game_scenario'),
+    )
+
+
+class CbtUserEntry(db.Model):
+    __tablename__ = 'cbt_user_entries'
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), nullable=False, index=True)
+    game_key = db.Column(db.String(40), nullable=False, index=True)  # e.g. 'war', 'soccer'
+    entry_type = db.Column(db.String(60), nullable=False, index=True)  # e.g. 'custom_interceptor'
+    scenario_key = db.Column(db.String(120), nullable=True, index=True)  # e.g. round id
+    text = db.Column(db.Text, nullable=False)
+    subject = db.Column(db.String(80), nullable=True, index=True)
+    age_group = db.Column(db.String(40), nullable=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
 
 class Player(db.Model):
     __tablename__ = 'players'

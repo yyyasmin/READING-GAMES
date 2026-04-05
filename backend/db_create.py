@@ -14,7 +14,8 @@ from config import DEFAULT_DATABASE_URI
 from app import app, db
 from models import (
     Player, Room, RoomPlayer, ConnectionLog, Task,
-    PyramidStory, PyramidStoryItem
+    PyramidStory, PyramidStoryItem,
+    CbtScenario, CbtUserEntry
 )
 
 _uri = app.config.get("SQLALCHEMY_DATABASE_URI", "")

@@ -1,0 +1,347 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  font-family: system-ui, 'Segoe UI', Tahoma, sans-serif;
+  background: radial-gradient(ellipse 120% 80% at 50% 0%, #14532d 0%, #052e16 45%, #0c1220 100%);
+  color: #ecfdf5;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.soccer-shell {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 2rem;
+  min-height: 100vh;
+}
+
+.soccer-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+}
+
+.soccer-header {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.soccer-header h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.soccer-sub {
+  margin: 0;
+  opacity: 0.85;
+  font-size: 0.95rem;
+}
+
+.soccer-card {
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  border-radius: 1rem;
+  padding: 1.25rem 1rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.soccer-error {
+  color: #fecaca;
+}
+
+.soccer-error code {
+  background: rgba(0, 0, 0, 0.35);
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+}
+
+.soccer-hint {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  margin-top: 0.75rem;
+}
+
+.soccer-intro {
+  line-height: 1.55;
+  margin: 0 0 1.25rem;
+}
+
+.soccer-mode-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.soccer-btn {
+  display: inline-block;
+  padding: 0.65rem 1rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  background: rgba(6, 78, 59, 0.6);
+  color: rgb(240, 253, 250);
+  font: inherit;
+  cursor: pointer;
+}
+
+.soccer-btn:hover {
+  background: rgba(6, 95, 70, 0.85);
+}
+
+.soccer-btn-primary {
+  background: linear-gradient(180deg, #059669 0%, #047857 100%);
+  border-color: #34d399;
+  font-weight: 600;
+}
+
+.soccer-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.soccer-badge {
+  font-size: 0.8rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.soccer-progress {
+  margin-inline-start: auto;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.soccer-situation {
+  line-height: 1.55;
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+}
+
+.soccer-hostile {
+  background: rgba(127, 29, 29, 0.35);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  border-radius: 0.65rem;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.soccer-hostile p {
+  margin: 0.35rem 0 0;
+  line-height: 1.5;
+}
+
+.soccer-label {
+  display: block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.8;
+}
+
+.soccer-pick {
+  margin-bottom: 0.75rem;
+}
+
+.soccer-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.soccer-opt {
+  text-align: right;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: rgba(15, 118, 110, 0.35);
+  color: inherit;
+  font: inherit;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.soccer-opt:hover:not(:disabled) {
+  background: rgba(15, 118, 110, 0.55);
+}
+
+.soccer-opt:disabled {
+  cursor: default;
+}
+
+.soccer-opt.is-correct {
+  border-color: #22c55e;
+  background: rgba(22, 101, 52, 0.55);
+}
+
+.soccer-opt.is-wrong {
+  border-color: #f87171;
+  background: rgba(127, 29, 29, 0.45);
+}
+
+.soccer-feedback {
+  margin: 0.5rem 0 0;
+  font-weight: 600;
+}
+
+.soccer-feedback.ok {
+  color: #86efac;
+}
+
+.soccer-feedback.no {
+  color: #fecaca;
+}
+
+.soccer-actions {
+  margin-top: 0.75rem;
+}
+
+.soccer-score {
+  margin: 0.75rem 0 0;
+  font-size: 0.95rem;
+  opacity: 0.9;
+}
+
+.soccer-score-final {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0.35rem 0 1rem;
+}
+
+/* לוח כדורגל + התקדמות */
+.soccer-field-board {
+  margin: 0 0 1rem;
+}
+
+.soccer-field-board-inner {
+  position: relative;
+  width: 100%;
+  border-radius: 0.65rem;
+  overflow: hidden;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.soccer-field-board-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  vertical-align: middle;
+}
+
+.soccer-field-board-fallback {
+  min-height: 12rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1rem;
+  font-size: 0.9rem;
+  color: #fecaca;
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.soccer-field-track-line {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.soccer-field-markers-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.soccer-progress-slot {
+  position: absolute;
+  width: 1.65rem;
+  height: 1.65rem;
+  margin: 0;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  background: rgba(15, 23, 42, 0.55);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #ecfdf5;
+}
+
+.soccer-progress-slot.is-past {
+  background: rgba(22, 163, 74, 0.65);
+  border-color: #86efac;
+}
+
+.soccer-progress-slot.is-current {
+  background: rgba(234, 179, 8, 0.85);
+  border-color: #fde047;
+  color: #1c1917;
+  box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.45);
+}
+
+.soccer-progress-slot.is-goal {
+  background: rgba(59, 130, 246, 0.75);
+  border-color: #93c5fd;
+}
+
+.soccer-player-pin {
+  position: absolute;
+  width: 1.5rem;
+  height: 1.5rem;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: linear-gradient(145deg, #1e3a8a 0%, #172554 100%);
+  border: 2px solid rgba(147, 197, 253, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #eff6ff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.soccer-player-pin-face {
+  line-height: 1;
+}
+
+.soccer-ball-pin {
+  position: absolute;
+  z-index: 3;
+  font-size: 1.35rem;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.45));
+}
+
+.soccer-field-legend {
+  margin: 0.4rem 0 0;
+  font-size: 0.72rem;
+  opacity: 0.8;
+  line-height: 1.35;
+}

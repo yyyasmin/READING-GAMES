@@ -9,13 +9,17 @@ import time
 from config import Config
 from models import (
     db, Player, Room, RoomPlayer, ConnectionLog, Task,
-    PyramidStory, PyramidStoryItem
+    PyramidStory, PyramidStoryItem,
+    CbtScenario, CbtUserEntry
 )
 
 app = Flask(__name__)
 app.config.from_object(Config)
 
 _player_last_columns_checked = False
+_cbt_tables_checked = False
+_cbt_war_seed_checked = False
+_cbt_soccer_seed_checked = False
 
 
 def ensure_player_last_choice_columns():
@@ -49,6 +53,23 @@ def _ensure_player_last_columns_once():
         return
     _player_last_columns_checked = True
     ensure_player_last_choice_columns()
+
+
+def ensure_cbt_tables():
+    """מבטיח שהטבלאות של CBT קיימות ב-DB (create_all הוא idempotent)."""
+    try:
+        db.create_all()
+    except Exception as exc:
+        print(f'WARNING: ensure_cbt_tables: {exc}', flush=True)
+
+
+@app.before_request
+def _ensure_cbt_tables_once():
+    global _cbt_tables_checked
+    if _cbt_tables_checked:
+        return
+    _cbt_tables_checked = True
+    ensure_cbt_tables()
 _cors_origins = os.environ.get('CORS_ORIGINS', '').strip() or '*'
 _origins_list = (
     [o.strip() for o in _cors_origins.split(',') if o.strip()]
@@ -109,6 +130,7 @@ _TASKS_JSON = os.path.join(_DATA_DIR, 'tasks.json')
 _CBT_CUSTOM_JSONL = os.path.join(_DATA_DIR, 'cbt_custom_interceptors.jsonl')
 _GAME_LOGIN_EMAILS_JSONL = os.path.join(_DATA_DIR, 'game_login_emails.jsonl')
 _CBT_WAR_ROUNDS_JSON = os.path.join(_DATA_DIR, 'cbt_war_rounds.json')
+_CBT_SOCCER_SCENARIOS_JSON = os.path.join(_DATA_DIR, 'cbt_soccer_scenarios.json')
 
 
 def _load_cbt_war_rounds_from_json_file():
@@ -126,6 +148,95 @@ def _load_cbt_war_rounds_from_json_file():
     except (json.JSONDecodeError, TypeError, ValueError) as e:
         print(f'WARNING: cbt_war_rounds.json invalid: {e}', flush=True)
     return None
+
+
+def _load_soccer_scenarios_from_json_file():
+    """גיבוי סיטואציות כדורגל כשמסד הנתונים לא זמין — קובץ JSON ב־backend/data/."""
+    try:
+        with open(_CBT_SOCCER_SCENARIOS_JSON, 'r', encoding='utf-8') as f:
+            payload = json.load(f)
+        if not isinstance(payload, dict):
+            return None
+        scenarios = payload.get('scenarios')
+        if isinstance(scenarios, list) and len(scenarios) > 0:
+            return scenarios
+    except OSError as e:
+        print(f'WARNING: cbt_soccer_scenarios.json unreadable: {e}', flush=True)
+    except (json.JSONDecodeError, TypeError, ValueError) as e:
+        print(f'WARNING: cbt_soccer_scenarios.json invalid: {e}', flush=True)
+    return None
+
+
+def _seed_cbt_war_rounds_into_db_if_empty():
+    """זריעה חד-פעמית: אם אין סבבים ב-DB, נטען מה-JSON ונכניס ל-DB."""
+    global _cbt_war_seed_checked
+    if _cbt_war_seed_checked:
+        return
+    _cbt_war_seed_checked = True
+    try:
+        existing = CbtScenario.query.filter_by(game_key='war').first()
+        if existing:
+            return
+        rounds = _load_cbt_war_rounds_from_json_file()
+        if not isinstance(rounds, list) or len(rounds) == 0:
+            return
+        for r in rounds:
+            if not isinstance(r, dict):
+                continue
+            sid = (r.get('id') or '').strip()
+            if not sid:
+                continue
+            subj = (r.get('subject') or '').strip() or None
+            db.session.add(CbtScenario(
+                game_key='war',
+                scenario_key=sid,
+                subject=subj,
+                payload_json=json.dumps(r, ensure_ascii=False),
+            ))
+        db.session.commit()
+        print('[cbt] Seeded war rounds into DB.', flush=True)
+    except Exception as exc:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        print(f'WARNING: seed cbt war rounds failed: {exc}', flush=True)
+
+
+def _seed_soccer_scenarios_into_db_if_empty():
+    """זריעה חד-פעמית: אם אין סיטואציות כדורגל ב-DB, נטען מה-JSON ונכניס ל-DB."""
+    global _cbt_soccer_seed_checked
+    if _cbt_soccer_seed_checked:
+        return
+    _cbt_soccer_seed_checked = True
+    try:
+        existing = CbtScenario.query.filter_by(game_key='soccer').first()
+        if existing:
+            return
+        scenarios = _load_soccer_scenarios_from_json_file()
+        if not isinstance(scenarios, list) or len(scenarios) == 0:
+            return
+        for s in scenarios:
+            if not isinstance(s, dict):
+                continue
+            sid = (s.get('id') or '').strip()
+            if not sid:
+                continue
+            subj = (s.get('subject') or '').strip() or None
+            db.session.add(CbtScenario(
+                game_key='soccer',
+                scenario_key=sid,
+                subject=subj,
+                payload_json=json.dumps(s, ensure_ascii=False),
+            ))
+        db.session.commit()
+        print('[cbt] Seeded soccer scenarios into DB.', flush=True)
+    except Exception as exc:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        print(f'WARNING: seed soccer scenarios failed: {exc}', flush=True)
 
 
 def _append_game_login_email_to_data(
@@ -232,7 +343,7 @@ def get_tasks():
 
 @app.route('/api/cbt-custom-interceptor', methods=['POST'])
 def cbt_custom_interceptor():
-    """שומר לקובץ DATA שורת JSON: אימייל + טקסט מיירט עצמי (משחק מלחמה / CBT)."""
+    """שומר מיירט עצמי גם ל-DB וגם לקובץ DATA (גיבוי JSONL)."""
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({'error': 'גוף הבקשה חייב להיות JSON'}), 400
@@ -249,6 +360,29 @@ def cbt_custom_interceptor():
     round_id = (data.get('round_id') or '').strip() or None
     subject = (data.get('subject') or '').strip() or None
     age_group = (data.get('age_group') or '').strip() or None
+    game_key = (data.get('game_key') or '').strip() or 'war'
+    entry_type = (data.get('entry_type') or '').strip() or 'custom_interceptor'
+
+    # DB write (best effort) + JSONL write (required backup)
+    db_ok = True
+    try:
+        db.session.add(CbtUserEntry(
+            email=email,
+            game_key=game_key,
+            entry_type=entry_type,
+            scenario_key=round_id,
+            text=custom_text,
+            subject=subject,
+            age_group=age_group,
+        ))
+        db.session.commit()
+    except Exception as exc:
+        db_ok = False
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        print(f'WARNING: cbt_custom_interceptor DB write failed: {exc}', flush=True)
     try:
         os.makedirs(_DATA_DIR, exist_ok=True)
         record = {
@@ -257,25 +391,50 @@ def cbt_custom_interceptor():
             'round_id': round_id,
             'subject': subject,
             'age_group': age_group,
+            'game_key': game_key,
+            'entry_type': entry_type,
             'ts': time.time(),
         }
         with open(_CBT_CUSTOM_JSONL, 'a', encoding='utf-8') as f:
             f.write(json.dumps(record, ensure_ascii=False) + '\n')
     except OSError as e:
         return jsonify({'error': f'כתיבה לקובץ נכשלה: {e}'}), 500
-    return jsonify({'ok': True})
+    return jsonify({'ok': True, 'db_ok': db_ok})
 
 
 @app.route('/api/cbt-war-rounds', methods=['GET'])
 def get_cbt_war_rounds():
-    """סבבי משחק מלחמה — נטען מקובץ גיבוי JSON; בעתיד ניתן להעדיף DB וליפול לכאן."""
-    rounds = _load_cbt_war_rounds_from_json_file()
-    if rounds is None:
-        return jsonify({
-            'error': 'נתוני סבבים לא זמינים (חסר או פגום קובץ data/cbt_war_rounds.json).',
-            'rounds': []
-        }), 503
+    """סבבי משחק מלחמה — DB קודם, עם גיבוי JSON אם DB לא זמין/ריק."""
     subject = (request.args.get('subject') or '').strip() or None
+
+    rounds = None
+    try:
+        _seed_cbt_war_rounds_into_db_if_empty()
+        q = CbtScenario.query.filter(CbtScenario.game_key == 'war')
+        if subject:
+            q = q.filter(CbtScenario.subject == subject)
+        rows = q.order_by(CbtScenario.scenario_key.asc(), CbtScenario.id.asc()).all()
+        if rows:
+            out = []
+            for row in rows:
+                try:
+                    parsed = json.loads(row.payload_json or '')
+                    if isinstance(parsed, dict):
+                        out.append(parsed)
+                except Exception:
+                    continue
+            if out:
+                rounds = out
+    except Exception as exc:
+        print(f'WARNING: cbt-war-rounds DB read failed: {exc}', flush=True)
+
+    if rounds is None:
+        rounds = _load_cbt_war_rounds_from_json_file()
+        if rounds is None:
+            return jsonify({
+                'error': 'נתוני סבבים לא זמינים (חסר או פגום קובץ data/cbt_war_rounds.json).',
+                'rounds': []
+            }), 503
     if subject:
         has_subject = any(
             isinstance(r, dict) and (str(r.get('subject') or '').strip())
@@ -287,6 +446,53 @@ def get_cbt_war_rounds():
                 if isinstance(r, dict) and (str(r.get('subject') or '').strip() == subject)
             ]
     return jsonify({'rounds': rounds})
+
+
+@app.route('/api/cbt-soccer-scenarios', methods=['GET'])
+def get_cbt_soccer_scenarios():
+    """סיטואציות משחק כדורגל CBT — DB קודם, עם גיבוי JSON אם DB לא זמין/ריק."""
+    subject = (request.args.get('subject') or '').strip() or None
+
+    scenarios = None
+    try:
+        _seed_soccer_scenarios_into_db_if_empty()
+        q = CbtScenario.query.filter(CbtScenario.game_key == 'soccer')
+        if subject:
+            q = q.filter(CbtScenario.subject == subject)
+        rows = q.order_by(CbtScenario.scenario_key.asc(), CbtScenario.id.asc()).all()
+        if rows:
+            out = []
+            for row in rows:
+                try:
+                    parsed = json.loads(row.payload_json or '')
+                    if isinstance(parsed, dict):
+                        out.append(parsed)
+                except Exception:
+                    continue
+            if out:
+                scenarios = out
+    except Exception as exc:
+        print(f'WARNING: cbt-soccer-scenarios DB read failed: {exc}', flush=True)
+
+    if scenarios is None:
+        scenarios = _load_soccer_scenarios_from_json_file()
+        if scenarios is None:
+            return jsonify({
+                'error': 'נתוני סיטואציות לא זמינים (חסר או פגום קובץ data/cbt_soccer_scenarios.json).',
+                'scenarios': []
+            }), 503
+    if subject:
+        has_subject = any(
+            isinstance(s, dict) and (str(s.get('subject') or '').strip())
+            for s in scenarios
+        )
+        if has_subject:
+            scenarios = [
+                s for s in scenarios
+                if isinstance(s, dict) and (str(s.get('subject') or '').strip() == subject)
+            ]
+    return jsonify({'scenarios': scenarios})
+
 
 @app.route('/api/game-login-email', methods=['POST'])
 def game_login_email():
